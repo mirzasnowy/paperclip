@@ -15,6 +15,10 @@ export async function notifyChatEndpointConfiguration(transaction: object, endpo
 
 export async function notifyChatConnectionConfiguration(transaction: object, connectionId: string, transport: ToolConnectionTransport = "chat_sdk") {
   if (transport === "chat_sdk" || transport === "voice") await notifyVoiceChange(transaction, { kind: "connection", id: connectionId });
+  await notifyChatConnectionObservation(transaction, connectionId, transport);
+}
+
+export async function notifyChatConnectionObservation(transaction: object, connectionId: string, transport: ToolConnectionTransport) {
   await notifyChatConnectionReceiver(transaction, connectionId, transport);
   if (transport === "chat_sdk") {
     await notifyGitHubWebhookRecovery(transaction, { kind: "connection", id: connectionId });

@@ -61,11 +61,11 @@ async function recoverCandidate(db: Db, candidate: { runId: string; companyId: s
       const explicitlySettled = priorActions.some(action => action.status === "cancelled"
         || (action.status === "resolved" && !["new_source_execution_path", "unsafe_export_automatic_recovery"].includes(action.resolutionNote ?? "")));
       const now = new Date();
-      // A stale unsafe notice is never an instruction to repair or start a
-      // provider turn, including when newer work prevents replay of this run.
+
+
       if (priorActions.some(action => ["active", "escalated"].includes(action.status)
         || (action.status === "resolved" && action.resolutionNote === "new_source_execution_path"))) {
-        // Retiring this notice can unblock another saved run on the same issue.
+
         await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: run.companyId, issueId: issue.id });
       }
       await tx.update(issueRecoveryActions).set({ status: "resolved", outcome: "restored", resolvedAt: now,
@@ -95,8 +95,6 @@ async function recoverCandidate(db: Db, candidate: { runId: string; companyId: s
       let updatedRun: typeof heartbeatRuns.$inferSelect | undefined;
       if (eligible) {
         await ownership.assertHeld();
-        // Publish the omission barrier atomically with re-admission. This is
-        // explicitly not a receipt claiming that files were copied to the host.
         await notifyNativeFinalizationWork(tx, { companyId: run.companyId, runId: run.id });
         await tx.insert(workspaceOperations).values({ companyId: run.companyId, heartbeatRunId: run.id, issueId: issue.id,
           phase: "workspace_finalize", status: "succeeded", exitCode: 0, finishedAt: now,
@@ -116,8 +114,8 @@ async function recoverCandidate(db: Db, candidate: { runId: string; companyId: s
           payload: { reason: "restore_unsafe_archive", legacy: true },
         });
       }
-      // Normal finalization publishes task status. Unsafe-export diagnostics
-      // belong only in run logs, not activity history or task notifications.
+
+
       return updatedRun ?? null;
     });
   });

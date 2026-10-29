@@ -254,10 +254,10 @@ async function classifyEvidenceRef(input: {
   };
 }
 
-/**
- * Classifies model claims against durable server-owned records. A model's
- * `satisfied` or `passed` value is retained as a claim but never becomes proof.
- */
+
+
+
+
 export async function classifyNativeEvidence(input: {
   db: Db;
   companyId: string;
@@ -265,7 +265,7 @@ export async function classifyNativeEvidence(input: {
   runId: string;
   contract: Record<string, unknown>;
   result: Record<string, unknown>;
-  /** Caller holds task/run FOR UPDATE in this transaction; evidence locks last through status commit. */
+
   lockSources?: boolean;
 }): Promise<NativeEvidenceAssessment> {
   const claim = record(input.result.completionClaim);

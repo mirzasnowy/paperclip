@@ -1004,3 +1004,81 @@ typecheck passes. Evidence: /tmp/sleep50-release-final.log/.status,
 /tmp/sleep50-release-{queue,queued_comment,control,safe,access,runtime,types}.log
 and .status. All launched command handles are terminal. Fresh-head remote CI and
 review remain required. The full stack and its earlier unresolved gates remain open.
+
+
+## Current master and landed parent qualification (2026-10-29)
+
+Parent #17702 merged from exact reviewed head
+`902817c46675d71fb17324683f39b9a39d6135e0` as
+`79ce86630a79dad65e3b753c13e3d49e22bbca2f` with all 57 checks clean and
+Greptile 5/5. No Ponytail review was present, which the authorized merge policy
+allows. The normal parent merge retains 12661 parent/unrelated tree entries and
+35 owned entries exactly. Twenty-one overlapping paths retain Git's automatic
+three-way result. Five original conflicts are reviewed explicitly: scoped wake
+fanout, conversation/session source locks, the extracted reassessment block,
+and the unsafe-workspace omission-barrier notification. The complete held-child
+tree is unchanged when reconciling the parent's actual squash ancestry.
+
+The current parent's required quality-review policy also moves with the
+reassessment owner. A required review is a business gate, not an operational
+failure. Two real regressions exercise this on retired-review reassessment and
+on committed work-product approval. Each optional control passes before repair;
+each required case instead retains retries, reports repeated
+`required_quality_review_incomplete` exceptions and reaches the unchanged
+15-second limit. Porting the retired-review policy fixes the first path.
+Reading the current task's quality policy for all completion-producing
+reassessments fixes the evidence path too. Both required cases now record the
+intended in-progress decision and become SQL quiet; neither bypasses the review.
+The same assertions and time limits are retained.
+
+Two more real SQL regressions cover dormant reassessment after three coarse
+company-only milestone/finalization hints. A controlled negative baseline removes
+only the ordinary issue/run guards; it reproduces nonzero response-history
+reconstruction. Restoring the guards byte for byte passes the same cases with
+zero reconstruction queries. Routine wake paths now remain scoped across all
+three workers; the explicit company authority boundary still wakes genuine global
+changes. Actual coalesced input and concurrent Photon recovery exercise all three
+queues. Ten active Photon assertions produce zero hints/SELECTs per worker;
+three concurrent attention assertions produce one wake/SELECT, then return quiet.
+Paperclip callbacks and PostgreSQL are real; external Photon transport is mocked.
+
+Broad source `9fddb3f0b1157df32b64fb1f22e9d6e9624470e8` passes **2731
+distinct cases across 28 complete files**, with no skipped cases: 2458 across
+27 producer/owner/authority/workspace/quality files in 394.43 seconds, then all
+273 governed-response cases in 53.74 seconds. Nineteen dedicated PostgreSQL 17
+fixtures migrate through 0413. Eighteen embedded-only fixture invocations use
+the existing startRecoveryPostgres external-host helper, preserving a fresh
+owned database per call and normal cleanup. All 22 temporary import adaptations
+restore exactly and all 28 captured source hashes match. This qualifies external
+PostgreSQL behavior, not embedded bootstrap on this semaphore-exhausted host.
+
+The later evidence-trigger fix changes only the reassessment owner and adds its
+two regressions. Final runtime source
+`5ea3b0fd016bf7e63ba82a7044825a46a0cd2082` passes **1211 distinct cases in
+five complete affected files** in 108.23 seconds: 43 worker cases, 145 status
+corpus cases, 32 finalization-recovery cases, 968 native-session cases and 23
+quality-review cases. Four dedicated fresh 0413 databases plus the quality
+suite's own fresh helper fixture use PostgreSQL 17. Its one temporary import
+restores exactly; all five hashes match. The other 27 broad-run test files are
+unchanged. These results keep their separate source scopes; overlapping cases
+are not cumulatively counted or described as a fresh complete 2731-case rerun.
+
+Database build, production server types/build, module boundaries and full-SHA
+migration order pass. Fourteen added comments in six files were removed with
+identical nontrivia token streams and no directives removed. The final added-
+comment check is empty. The database tree is identical to the landed parent:
+no migration, snapshot generation or queue table is introduced here.
+
+Earlier failures remain part of the record, including the two quality retry
+loops, the controlled scope negatives, and inherited historical host/fixture
+limitations. The local evidence-trigger runner reused an earlier composition-tree
+metadata field; its addendum identifies the precise 9fddb production baseline
+and before/after owner hashes without altering outcomes or test hashes. The first
+actual-squash proof attempt lacked the newly created Git object; fetching the
+object and rerunning establishes exact parent/tree identity before mutation.
+No application failure was classified as infrastructure from a successful retry.
+
+This is targeted local acceptance, not a full repository-suite or deployed-sleep
+claim. Fresh exact-head CI, Greptile 5/5, and resolution of actionable reviews
+remain required before merging this PR. Other workspace/session/cleanup duties
+and Cloud sleep eligibility remain separate.
