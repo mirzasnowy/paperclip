@@ -1,9 +1,10 @@
 import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createRequire } from "node:module";
-import { cp, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { createRequire, stripTypeScriptTypes } from "node:module";
+import { cp, mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
 import { promisify } from "node:util";
 const reads = vi.hoisted(() => ({ files: [] as string[], directories: [] as string[], oversized: "" }));
 vi.mock("node:fs/promises", async original => {
@@ -27,9 +28,10 @@ import { archivePrivateEvidence, retainPrivateTransfer } from "./private-history
 import { BoundedHistoryPublisher } from "./history-budget.js";
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const roots: string[] = [];
+const temporaryRoot = await realpath(os.tmpdir());
 let reporter: string, producerRoot: string, producer: CellReportProducerIdentity;
 beforeAll(async () => {
-  producerRoot = await mkdtemp("/private/tmp/synthetic-cell-producer-");
+  producerRoot = await mkdtemp(path.join(temporaryRoot, "synthetic-cell-producer-"));
   reporter = path.join(producerRoot, "reporter"); const tests = path.join(producerRoot, "node-tests");
   await Promise.all([mkdir(reporter), mkdir(tests)]);
   const require = createRequire(import.meta.url), pkg = require.resolve("@playwright/test/package.json"), entry = require.resolve("@playwright/test");
@@ -46,7 +48,7 @@ beforeAll(async () => {
 afterEach(async () => { reads.oversized = ""; reads.files.length = 0; reads.directories.length = 0; await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 afterAll(async () => { await rm(producerRoot, { recursive: true, force: true }); });
 async function fixture() {
-  const root = await mkdtemp("/private/tmp/synthetic-private-cell-"); roots.push(root);
+  const root = await mkdtemp(path.join(temporaryRoot, "synthetic-private-cell-")); roots.push(root);
   const id = MANUAL_PRIVATE_EXECUTIONS[0]!, cell = path.join(root, "capture/cases/activity.agent-feedback"); await mkdir(cell, { recursive: true });
   await copySharedEvidence(reporter, cell, path.join(root, "controller"), []);
   await writeFile(path.join(cell, "result.json"), '{"status":"failed","failureClass":"assertion"}');
@@ -154,7 +156,7 @@ it.each(["unknown", "oversize", "symlink"])("rejects %s before reading a cell st
   expect(reads.files).not.toContain(file);
 });
 it("rejects public or overlapping output roots and unverified private flags before deleting output", async () => {
-  const f = await fixture(), outside = await mkdtemp("/private/tmp/synthetic-public-destination-"); roots.push(outside); await writeFile(path.join(outside, "keep.txt"), "keep");
+  const f = await fixture(), outside = await mkdtemp(path.join(temporaryRoot, "synthetic-public-destination-")); roots.push(outside); await writeFile(path.join(outside, "keep.txt"), "keep");
   for (const [uploadDir, owner] of [[outside, f.owner], [f.cell, f.owner], [f.upload, { ...f.owner }]] as const)
     await expect(packageEvidence({ privateDir: f.cell, uploadDir, secrets: [], expectPassScreenshot: false, privateCell: { owner, layout: "original" } })).rejects.toThrow();
   expect(await readFile(path.join(outside, "keep.txt"), "utf8")).toBe("keep");
@@ -163,7 +165,7 @@ it.each(["missing", "same-version-tamper"])("actual preflight rejects %s produce
   const f = await fixture(), file = path.join(f.root, "preflight.json");
   const wrong = structuredClone(producer); wrong.producers[0]!.sha256 = "0".repeat(64);
   await writeFile(file, JSON.stringify({ ...f.context, status: "verified", cellReportProducer: kind === "missing" ? undefined : wrong }), { mode: 0o600 });
-  const env = { PAPERCLIP_RUNNER_E2E_PRIVATE_PREFLIGHT: file, RUNNER_TEMP: "/private/tmp", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: f.context.workflowSha, PAPERCLIP_RUNNER_E2E_SOURCE_SHA: f.context.targetSha };
+  const env = { PAPERCLIP_RUNNER_E2E_PRIVATE_PREFLIGHT: file, RUNNER_TEMP: temporaryRoot, GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: f.context.workflowSha, PAPERCLIP_RUNNER_E2E_SOURCE_SHA: f.context.targetSha };
   let callbacks = 0;
   await expect(readManualPrivateHandoff(env, [f.id]).then(() => { callbacks++; })).rejects.toThrow(/producer/);
   expect(callbacks).toBe(0);
@@ -197,9 +199,9 @@ it("accepts the actual compact portable producer identity before callbacks", asy
   const f = await fixture(), file = path.join(f.root, "preflight.json");
   const serialized = JSON.stringify({ ...f.context, status: "verified" });
   expect(Buffer.byteLength(serialized)).toBeLessThan(65536);
-  expect(JSON.stringify(producer)).not.toContain("/private/tmp");
+  expect(JSON.stringify(producer)).not.toContain(temporaryRoot);
   await writeFile(file, serialized, { mode: 0o600 });
-  const env = { PAPERCLIP_RUNNER_E2E_PRIVATE_PREFLIGHT: file, RUNNER_TEMP: "/private/tmp", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: f.context.workflowSha, PAPERCLIP_RUNNER_E2E_SOURCE_SHA: f.context.targetSha };
+  const env = { PAPERCLIP_RUNNER_E2E_PRIVATE_PREFLIGHT: file, RUNNER_TEMP: temporaryRoot, GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: f.context.workflowSha, PAPERCLIP_RUNNER_E2E_SOURCE_SHA: f.context.targetSha };
   expect((await readManualPrivateHandoff(env, [f.id]))?.cellReportProducer).toEqual(producer);
 });
 
@@ -217,7 +219,7 @@ it("rejects a registered public-path match before reading its genuine static bod
 });
 
 async function stagingFixture() {
-  const root = await mkdtemp("/private/tmp/synthetic-excluded-cell-staging-"); roots.push(root);
+  const root = await mkdtemp(path.join(temporaryRoot, "synthetic-excluded-cell-staging-")); roots.push(root);
   const id = "chat-features.runner-opencode.local.onboarding.new-instance", source = path.join(root, "capture/cases/onboarding.new-instance");
   await mkdir(source, { recursive: true });
   const owner = await privateCellEvidenceOwner({ private: true, root, runId: "123", attempt: "1", executionIds: [id], cellReportProducer: producer }, id);
@@ -245,4 +247,28 @@ it("still rejects more than4096 genuine standard files, including node_modules w
 it.each(["snapshots/node_modules/package/unknown.bin", "html-report/node_modules/package/unknown.svg"])("pruning staging does not ignore unapproved carrier %s within standard evidence", async relative => {
   const f = await stagingFixture(); await mkdir(path.dirname(path.join(f.source, relative)), { recursive: true }); await writeFile(path.join(f.source, relative), "synthetic unsupported");
   await expect(packageEvidence({ privateDir: f.source, uploadDir: f.uploadDir, secrets: [], expectPassScreenshot: false, privateCell: { owner: f.owner, layout: "original" } })).rejects.toThrow(/Unsupported/);
+});
+
+it.each([0, 1])("actual launcher packaging call %s retains the verified private producer tree", async index => {
+ const source = await readFile(new URL("./launch.ts", import.meta.url), "utf8");
+ const calls: string[] = [];
+ for (const match of source.matchAll(/await packageEvidence\(/g)) {
+  let depth = 1, quote = "", escaped = false, end = match.index! + match[0].length;
+  for (; end < source.length && depth; end++) {
+   const char = source[end]!;
+   if (quote) { if (escaped) escaped = false; else if (char === "\\") escaped = true; else if (char === quote) quote = ""; }
+   else if (char === '"' || char === "'" || char === "`") quote = char;
+   else if (char === "(") depth++;
+   else if (char === ")") depth--;
+  }
+  calls.push(source.slice(match.index!, end));
+ }
+ expect(calls).toHaveLength(2);
+ const code = stripTypeScriptTypes(`async function actualCall(manualPrivateHandoff, candidate, casePrivateDir, uploadDir, credentials, result) { return ${calls[index]}; }`, { mode: "strip" });
+ const actualCall = Function("packageEvidence", "privateCellEvidenceOwner", `${code}; return actualCall;`)(packageEvidence, privateCellEvidenceOwner) as (context: ManualPrivateHandoff | undefined, candidate: { id: string }, source: string, target: string, secrets: string[], result: { status: string }) => ReturnType<typeof packageEvidence>;
+ const f = await fixture();
+ const packaged = await actualCall(f.context, { id: f.id }, f.cell, f.upload, [], { status: "failed" });
+ for (const name of ["playwright-logo.svg", "manifest.webmanifest", "index.html"]) expect(packaged.files).toContain(`html-report/trace/${name}`);
+ const publicPackage = await actualCall(undefined, { id: f.id }, f.cell, path.join(f.root, "nonprivate-packaged"), [], { status: "failed" });
+ expect(publicPackage.files).not.toContain("html-report/trace/playwright-logo.svg");
 });
