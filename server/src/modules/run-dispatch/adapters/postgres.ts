@@ -674,7 +674,7 @@ export function createPostgresRunDispatchAdapter(
     await notifyInstructionCollection(tx, { companyId: input.companyId, runId: input.runId });
     await notifyCancelledWorkspacePreservation(tx, { companyId: input.companyId, runId: input.runId });
     await notifyScheduledRetryCancellation(tx, { companyId: input.companyId, runId: input.runId });
-    await notifyChatRunMilestones(tx, { companyId: input.companyId, issueId: issueId ?? undefined });
+    await notifyChatRunMilestones(tx, { companyId: input.companyId, issueId: issueId ?? undefined, runId: input.runId });
     const [row] = await tx
       .update(heartbeatRuns)
       .set({
@@ -721,7 +721,7 @@ export function createPostgresRunDispatchAdapter(
     await notifyCancelledWorkspacePreservation(tx, { companyId: input.companyId, runId: input.runId });
     await notifyScheduledRetryCancellation(tx, { companyId: input.companyId, runId: input.runId });
     await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: input.companyId, issueId: input.issueId ?? undefined });
-    await notifyChatRunMilestones(tx, { companyId: input.companyId, issueId: input.issueId ?? undefined });
+    await notifyChatRunMilestones(tx, { companyId: input.companyId, issueId: input.issueId ?? undefined, runId: input.runId });
     const [row] = await tx
       .update(heartbeatRuns)
       .set({

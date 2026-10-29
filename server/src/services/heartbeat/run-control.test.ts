@@ -14,6 +14,7 @@ import { AdapterStopTimeoutError } from "../adapter-stop-timeout.js";
 import { HttpError } from "../../errors.js";
 import { captureException } from "../../sentry.js";
 import { terminateLocalService } from "../local-service-supervisor.js";
+import { publishLiveEvent } from "../live-events.js";
 import { createHeartbeatRunState } from "./run-state.js";
 import { createHeartbeatRunControl } from "./run-control.js";
 import { createScheduledRetryCancellationRecovery } from "./scheduled-retry-cancellation.js";
@@ -291,8 +292,8 @@ describe.skipIf(!runControlPostgresSupport.supported)("heartbeat run-control dat
     let enter!: () => void, release!: () => void;
     const entered = new Promise<void>(resolve => { enter = resolve; });
     const held = new Promise<void>(resolve => { release = resolve; });
-    // Pause only the foreground caller. A separate recovery owner reads the
-    // committed fence and wins the real terminal CAS before this caller resumes.
+
+
     if (boundary === "task") {
       const getAgent = deps.getAgent.getMockImplementation()!;
       deps.getAgent.mockImplementationOnce(async id => { enter(); await held; return getAgent(id); });
@@ -509,6 +510,63 @@ describe.skipIf(!runControlPostgresSupport.supported)("heartbeat run-control dat
     await issueService(db).update(f.issue.id, { status: "done" });
     expect((await db.select().from(cases).where(eq(cases.id, f.caseRow.id)))[0])
       .toMatchObject({ status: "in_progress", phase: "verification", completedAt: null });
+  });
+
+  it.each([false, true])("discards rolled-back native Stop claims and activity before retry (authority revoked=%s)", async revokeAuthority => {
+    const f = await boardTerminalFixture("running", "native");
+    const requestId = randomUUID(), deps = callbacks(db);
+    vi.mocked(publishLiveEvent).mockClear();
+    const transact = db.transaction.bind(db);
+    let injected = false;
+    const transaction = vi.spyOn(db, "transaction").mockImplementationOnce(async (operation, config) => {
+      try {
+        return await transact(async tx => {
+          const result = await operation(tx);
+          const [claimed] = await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id));
+          expect(claimed.resultJson?.startupCancellation).toMatchObject({ cancellationRequestId: requestId });
+          expect(claimed.resultJson?.executionCancellation).toMatchObject({ state: "requested" });
+          expect((await tx.select().from(caseHandoffs).where(eq(caseHandoffs.id, f.receipt.handoffId)))[0].state).toBe("cancelled");
+          expect((await tx.select().from(activityLog).where(eq(activityLog.companyId, f.company.id)))
+            .filter(row => row.action === "case.handoff_cancelled")).toHaveLength(1);
+          expect(deps.getAgent).not.toHaveBeenCalled();
+          injected = true;
+          await tx.execute(sql`do $$ begin raise exception using errcode = '40P01', message = 'Deadlock after native Stop claim'; end $$`);
+          return result;
+        }, config);
+      } catch (error) {
+        if (injected && revokeAuthority) await db.update(nativeRunFinalizations)
+          .set({ phase: "terminal_failure", failureCode: "retry_authority_revoked", nextAttemptAt: null })
+          .where(eq(nativeRunFinalizations.runId, f.run.id));
+        throw error;
+      }
+    });
+    try {
+      const stopping = createHeartbeatRunControl(db, deps).cancelRunInternal(f.run.id, "Retry native Stop", {
+        resultJson: { cancelledByActorType: "user", cancelledByUserId: "operator" },
+        cancellationRequestId: requestId, cancellationRequestedByUserId: "operator",
+      });
+      if (revokeAuthority) {
+        await expect(stopping).rejects.toMatchObject({ status: 409 });
+        expect(await deps.getRun(f.run.id)).toMatchObject({ status: "failed", resultJson: null });
+        expect(deps.getAgent).not.toHaveBeenCalled();
+        expect(deps.options.closeWarmNativeSessionsForRun).not.toHaveBeenCalled();
+        expect(deps.envOrchestrator.releaseForRun).not.toHaveBeenCalled();
+      } else {
+        await expect(stopping).resolves.toMatchObject({ status: "cancelled" });
+        expect((await deps.getRun(f.run.id))?.resultJson?.startupCancellation).toMatchObject({ cancellationRequestId: requestId });
+      }
+      expect(injected).toBe(true);
+      expect(transaction.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect((await db.select().from(caseHandoffs).where(eq(caseHandoffs.id, f.receipt.handoffId)))[0].state)
+        .toBe(revokeAuthority ? "awaiting_completion" : "cancelled");
+      const expected = revokeAuthority ? 0 : 1;
+      expect((await db.select().from(activityLog).where(eq(activityLog.companyId, f.company.id)))
+        .filter(row => row.action === "case.handoff_cancelled")).toHaveLength(expected);
+      expect(vi.mocked(publishLiveEvent).mock.calls.map(([event]) => event)
+        .filter(event => event.companyId === f.company.id && event.type === "activity.logged"
+          && event.payload?.action === "case.handoff_cancelled")).toHaveLength(expected);
+      expect(terminateLocalService).not.toHaveBeenCalled();
+    } finally { transaction.mockRestore(); }
   });
 
   it("stops current preparing execution despite a prior terminal checkout when cancelling board intent", async () => {

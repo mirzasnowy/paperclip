@@ -1,3 +1,5 @@
+import { notifyChatRunMilestones } from "../services/chat-run-milestone-notifications.js";
+import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
 import { createPostgresWakeQueueAdapter } from "../modules/wake-queue/adapters/postgres.js";
 import { withNativeWorkspaceFinalizationOwnership } from "../services/native-runtime/native-workspace-finalization-ownership.js";
 import express from "express";
@@ -125,6 +127,47 @@ describe("native reassessment worker lifecycle", () => {
       status: "succeeded", exitCode: 0, cwd: process.cwd(), finishedAt: new Date() });
     return { issueId, runId, workProductId, decisionId: committed.decision.id };
   }
+
+  it.each(["milestone", "finalization"] as const)("ignores repeated unscoped routine %s hints without reconstructing dormant reassessment history", async source => {
+    const seeded = await seedReview();
+    const [other] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "failed",
+      runtimeMode: "legacy", contextSnapshot: { issueId: seeded.issueId }, finishedAt: new Date() }).returning();
+    await db.update(issues).set({ executionRunId: other.id }).where(eq(issues.id, seeded.issueId));
+    await dismissAutomaticCompletionReviews(db, seeded.issueId);
+    await start();
+    await flush();
+    await quiet();
+    expect(await nativeStatusReassessmentWork(db).load({ companyId, runId: seeded.runId })).toHaveLength(1);
+    const debug = db.$client.options.debug;
+    const queries: string[] = [];
+    db.$client.options.debug = (_connection, query) => {
+      if (query.startsWith("select") && query.includes("native_run_finalizations")) queries.push(query);
+    };
+    try {
+      for (let i = 0; i < 3; i++) {
+        await db.transaction(tx => source === "milestone" ? notifyChatRunMilestones(tx, { companyId })
+          : notifyNativeFinalizationWork(tx, { companyId }));
+        await flush();
+      }
+      expect(queries).toEqual([]);
+      expect(await status(seeded.issueId)).toBe("in_review");
+    } finally { db.$client.options.debug = debug; }
+    await quiet();
+  });
+
+  it.each([false, true])("preserves the current required quality-review gate during retired-review reassessment (required=%s)", async required => {
+    const seeded = await seedReview();
+    if (required) await db.update(issues).set({ executionPolicy: { requiredQualityReview: {
+      version: 1, deliverables: [{ key: "output", label: "Verified output" }],
+    } } }).where(eq(issues.id, seeded.issueId));
+    await dismissAutomaticCompletionReviews(db, seeded.issueId);
+    await start();
+    await flush();
+    expect(await status(seeded.issueId)).toBe(required ? "in_progress" : "done");
+    const decisions = await db.select().from(statusDecisions).where(eq(statusDecisions.issueId, seeded.issueId));
+    if (required) expect(decisions.find(row => row.id !== seeded.decisionId)?.reasonCode).toBe("required_quality_review_incomplete");
+    await quiet();
+  });
 
   it.each(["force release", "release", "terminal execution", "terminal checkout", "queue release"] as const)(
     "wakes dormant reassessment from real %s", async action => {
@@ -442,6 +485,23 @@ describe("native reassessment worker lifecycle", () => {
     });
     await flush();
     expect(await status(seeded.issueId)).toBe("done");
+    await quiet();
+  });
+
+  it.each([false, true])("preserves the required quality-review gate after real evidence approval (required=%s)", async required => {
+    const seeded = await seedReview();
+    await db.update(issueWorkProducts).set({ reviewState: "none" }).where(eq(issueWorkProducts.id, seeded.workProductId));
+    if (required) await db.update(issues).set({ executionPolicy: { requiredQualityReview: {
+      version: 1, deliverables: [{ key: "output", label: "Verified output" }],
+    } } }).where(eq(issues.id, seeded.issueId));
+    await start();
+    await flush();
+    await quiet();
+    await workProductService(db).update(seeded.workProductId, { reviewState: "approved" });
+    await flush();
+    expect(await status(seeded.issueId)).toBe(required ? "in_progress" : "done");
+    const decisions = await db.select().from(statusDecisions).where(eq(statusDecisions.issueId, seeded.issueId));
+    if (required) expect(decisions.find(row => row.id !== seeded.decisionId)?.reasonCode).toBe("required_quality_review_incomplete");
     await quiet();
   });
 
