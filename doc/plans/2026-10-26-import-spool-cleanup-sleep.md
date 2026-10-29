@@ -227,3 +227,37 @@ process need their own ingress and can otherwise be discovered only at startup.
 Internal cleanup deadlines do not prove an external Cloud wake. Existing sleep
 blockers remain; no database suspension, external alarm coverage, or cost savings
 is claimed.
+
+## CI concurrency test repair (2026-10-29)
+
+Current-head CI on `284294a9ab453406cfb6d4ff4bafc9c403dd1c80` passed 2,192 server-shard cases and failed
+one tool-access audience race case. The test assumed that two 50 ms sleeps
+queued member suspension ahead of an empty audience replacement. That ordering
+was not established. If the explicit empty replacement wins while membership
+is still active, its company-wide audience is the authorized result.
+
+The repair changes only that three-case test fixture. Dedicated backend PIDs
+are observed, and each queued writer must be blocked by the exact first
+transaction before its lock is released. Cleanup is proved to queue first.
+All original inactive-audience, HTTP denial, and no-token assertions remain.
+Finally releases transaction gates, joins pending work, and closes dedicated
+clients if a readiness assertion fails. Production authorization is unchanged.
+
+A controlled 500 ms delay before cleanup issues its lock query reproduces all
+three old timing failures. The old fixture permits empty replacement to finish
+first; observed rows confirm a successful explicit replacement and an empty
+audience after membership cleanup. With the same controlled delay, the repaired
+fixture passes all three suspension/archive/removal cases. The artificial delay
+and diagnostic logging are not committed. The final test keeps its original
+15-second limit and uses bounded real PostgreSQL lock observations.
+
+The complete 472-case tool-access file passes on source `5d974e5eb28fc3e28b5e75e36fb18c61582348d5` in 20.86
+seconds, with zero skips. The eight earlier consumer files remain hash-identical
+and their 293 passing cases remain source-scoped evidence. This yields 765
+distinct passing cases across nine complete files; controlled reruns are not
+counted again. The first local full-file run passed 471 cases and timed out one
+separate stdio-administration HTTP case at 15 seconds. A single fresh full-file
+diagnostic run, with sanitized database wait-state capture, passes all 472.
+That local timeout's cause was not established. It remains a failed command in
+the record; no timeout or assertion changed and no first-run aggregate pass is
+claimed. Fresh publication-head CI and reviews must pass again.
