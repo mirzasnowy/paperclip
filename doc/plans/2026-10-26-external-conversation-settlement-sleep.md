@@ -251,7 +251,8 @@ selection. Coverage includes the full settlement, queue, monitor scheduling,
 run-state, goal, decision-target, interaction, task Retry, projection, result
 commit, workspace, process recovery, and review consumers. The 38 selected test
 files restore to their exact committed hashes after temporary fixture imports.
-Prepared fixtures use PostgreSQL 17 and the 413-migration schema; helpers create
+Prepared fixtures use PostgreSQL 17 and 412 migration receipts through journal tag
+0413_tired_kronos; helpers create
 additional fresh per-call fixtures where required.
 
 Failure accounting: the initial 35-file command passed 2,445 cases and timed out
