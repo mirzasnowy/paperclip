@@ -1,12 +1,26 @@
 import { randomUUID } from "node:crypto";
-import { open } from "node:fs/promises";
+import { open, statfs } from "node:fs/promises";
 import { openDaytonaDuplexChannelSession, type DaytonaPtyProcess, type DuplexChannelSession } from "./duplex-command-stream.js";
 
 // Keep encoded bursts below the provider's 64 KiB PTY message limit and wait
 // for each acknowledgement so output cannot overrun its socket queue.
 const CHUNK_BYTES = 40 * 1024;
 const MAX_FRAME_BYTES = Math.ceil(CHUNK_BYTES / 3) * 4 + 128;
+const HOST_FREE_RESERVE_BYTES = 1024 ** 3;
+const CLEANUP_TIMEOUT_MS = 5_000;
 const quote = (value: string) => `'${value.replace(/'/g, `'"'"'`)}'`;
+
+async function closeArchiveSession(session: DuplexChannelSession): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      session.close().catch(() => undefined),
+      new Promise<void>(resolve => { timer = setTimeout(resolve, CLEANUP_TIMEOUT_MS); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** No remote archive or session log: one chunk in memory, acknowledged only
  * after its host write. The ordinary archive validator still owns import. */
@@ -16,7 +30,11 @@ export async function streamSandboxArchive(input: {
   archiveScript: string;
   destination: string;
   timeoutSeconds: number;
+  maxBytes: number;
 }): Promise<void> {
+  if (!Number.isSafeInteger(input.maxBytes) || input.maxBytes <= 0) {
+    throw new Error("Daytona archive stream requires a verified sandbox disk budget");
+  }
   const marker = `paperclip-archive-${randomUUID()}`;
   const ready = `${marker}:ready`;
   const start = `${marker}:start`;
@@ -43,6 +61,7 @@ export async function streamSandboxArchive(input: {
   let complete = false;
   let writing = false;
   let buffer = "";
+  let receivedBytes = 0;
   let pending = Promise.resolve();
   let rejectFailure!: (error: Error) => void;
   const failure = new Promise<never>((_, reject) => { rejectFailure = reject; });
@@ -53,7 +72,7 @@ export async function streamSandboxArchive(input: {
       ["bash", "--noprofile", "--norc", "-o", "pipefail", "-c",
         `printf '\\n%s\\n' ${quote(ready)}; IFS= read -r script && eval "$(printf %s \"$script\" | base64 -d)"`],
       { cwd: input.cwd, diagnosticsPath: "/dev/null" });
-    if (stopped) { await session.close(); return; }
+    if (stopped) { await closeArchiveSession(session); return; }
     session.onData(bytes => {
       if (stopped) return;
       buffer += Buffer.from(bytes).toString("utf8");
@@ -83,7 +102,16 @@ export async function streamSandboxArchive(input: {
         writing = true;
         pending = pending.then(async () => {
           if (stopped) return;
+          if (receivedBytes + data.length > input.maxBytes) {
+            throw new Error("Daytona archive stream exceeds the sandbox disk budget");
+          }
+          const available = await statfs(input.destination);
+          if (available.bavail * available.bsize - data.length < HOST_FREE_RESERVE_BYTES) {
+            throw new Error("Daytona archive stream would exhaust the host free-space reserve");
+          }
+          if (stopped) return;
           await file.writeFile(data);
+          receivedBytes += data.length;
           writing = false;
           session!.write(Buffer.from(`${marker}\n`));
         }).catch(error => { rejectFailure(error); });
@@ -100,8 +128,12 @@ export async function streamSandboxArchive(input: {
   } finally {
     stopped = true;
     clearTimeout(timer);
-    await session?.close();
-    await pending;
-    await file.close();
+    const cleanup = session ? closeArchiveSession(session) : Promise.resolve();
+    try {
+      await pending;
+    } finally {
+      await file.close();
+      await cleanup;
+    }
   }
 }

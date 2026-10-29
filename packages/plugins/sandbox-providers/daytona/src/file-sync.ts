@@ -1352,6 +1352,7 @@ async function syncOutDirectoryMapping(input: {
         if (streaming) {
           await withEnvironmentSyncTransferStep("archive_download", () => streamSandboxArchive({
             process: sandbox.process, cwd: remoteDir, archiveScript: script(null), destination: localTar, timeoutSeconds,
+            maxBytes: Math.floor(sandbox.disk * 1024 ** 3),
           }));
         } else {
           // `transfer` span: the real byte download — `sandbox.fs.downloadFiles`.

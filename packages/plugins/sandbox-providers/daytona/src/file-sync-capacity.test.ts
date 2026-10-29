@@ -37,7 +37,9 @@ while True:
             data = data[os.write(dst, data):]
 `;
 
-it.each([false, true])("preserves source bytes under archive capacity failure (stream producer fails: %s)", async producerFails => {
+it.each(["success", "producer failure", "sparse archive over budget"])("preserves source bytes under archive capacity failure: %s", async scenario => {
+  const producerFails = scenario === "producer failure";
+  const sparseOverBudget = scenario === "sparse archive over budget";
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "daytona-capacity-"));
   roots.push(root);
   const remote = path.join(root, "remote");
@@ -51,18 +53,23 @@ it.each([false, true])("preserves source bytes under archive capacity failure (s
   const tar = executable(["gtar", "tar"]);
   if (producerFails) {
     await fs.writeFile(path.join(bin, "tar"), `#!/bin/sh\n'${tar}' "$@"\nstatus=$?\ncase " $* " in *" -f - "*) exit 23 ;; esac\nexit "$status"\n`, { mode: 0o755 });
-    await fs.mkdir(output);
-    await fs.writeFile(path.join(output, "result.bin"), "newer host work");
   } else {
     await fs.symlink(tar, path.join(bin, "tar"));
   }
+  if (producerFails || sparseOverBudget) {
+    await fs.mkdir(output);
+    await fs.writeFile(path.join(output, "result.bin"), "newer host work");
+  }
   const env = { ...process.env, PATH: `${bin}:${process.env.PATH}` };
-  const bytes = Buffer.alloc(5 * 1024 * 1024, "saved work\n");
-  await fs.writeFile(path.join(remote, "result.bin"), bytes, { mode: 0o600 });
+  const bytes = Buffer.alloc(5 * 1024 * 1024, sparseOverBudget ? 0 : "saved work\n");
+  await fs.writeFile(path.join(remote, "result.bin"), sparseOverBudget ? "" : bytes, { mode: 0o600 });
+  if (sparseOverBudget) await fs.truncate(path.join(remote, "result.bin"), bytes.length);
   await fs.symlink("/etc/passwd", path.join(remote, "unsafe-link"));
   await fs.symlink("result.bin", path.join(remote, "safe-link"));
   const failures: string[] = [];
   const sandbox = {
+    // A miniature provider-reported quota makes the sparse-file case bounded.
+    disk: sparseOverBudget ? 1 / 4096 : 1,
     process: {
       executeCommand: async (command: string) => {
         const result = spawnSync("bash", ["-c", 'ulimit -f 128; exec sh -c "$1"', "bash", command], { env, encoding: "utf8" });
@@ -95,8 +102,8 @@ it.each([false, true])("preserves source bytes under archive capacity failure (s
   const sync = performSyncOut({ sandbox: sandbox as never, remoteDir: remote, timeoutSeconds: 30,
     operations: [{ operationId: "export", files: [{ sourcePath: remote, targetPath: output, kind: "directory" }] }],
   });
-  if (producerFails) {
-    await expect(sync).rejects.toThrow("without a successful archive receipt");
+  if (producerFails || sparseOverBudget) {
+    await expect(sync).rejects.toThrow(sparseOverBudget ? "sandbox disk budget" : "without a successful archive receipt");
     expect(await fs.readFile(path.join(output, "result.bin"), "utf8")).toBe("newer host work");
     expect(await fs.readdir(output)).toEqual(["result.bin"]);
     expect((await fs.readFile(path.join(remote, "result.bin"))).equals(bytes)).toBe(true);
