@@ -378,3 +378,49 @@ fresh CI/security and reviews on its exact head. No full local repository-suite,
 live provider, production load, external wake, measured host/database suspension
 or fleet-savings claim is made. Earlier historical results and limitations above
 remain attached to their original revisions.
+
+## Final current-master qualification before publication
+
+The source for final publication is reconciled normally through
+`d9277b1858a2230bdb726974c90a0c9bc5c5ebe6`, including actual agent-timer squash
+`ba07f85cadede4673a06c96becc4c4eed2193b93` and current master
+`7e27bc5007c8f9cb8cdce06c24f9813e27f7120f`. This preserves all 24 retention-owned
+paths and all 95 unrelated upstream paths byte for byte. The complete package,
+UI, E2E-test and map trees equal current master. The earlier profile-80 package
+identity statement describes the earlier acceptance revision, not this later
+upstream context. No unrelated upstream implementation is removed.
+
+On the first combined master context, 36 complete server files passed **869
+cases**; six complete adapter/Runner files passed **140 cases**, with one
+intentional Linux-inotify-only launcher case skipped on this macOS host. Two
+Rust targets passed **28 cases**, including both configured-environment tests
+and the full 26-case native backend target. The Runner and adapter packages
+were rebuilt; Runner typechecking includes Rust formatting/workspace checks.
+These counts describe 1,009 passing TypeScript cases across 42 complete files
+and 28 passing Rust cases, rather than a full repository or live-provider run.
+All selected source hashes and temporary PostgreSQL fixture imports were restored.
+
+Two subsequent upstream changes introduced the task activity index and compact
+task reads. On the final source, **85 cases across six complete files**
+passed again: actual skill retention, cache and worker, task cold-open reads,
+task-list query/result/planner behavior, and migration invalid-index/concurrent
+replay recovery. These focused cases overlap the earlier retention selection;
+they are not added to a unique-case total. Fresh PostgreSQL 17 schemas applied
+all **413 journal entries through index 414**. Database build, production server
+typechecking/build, module boundaries, target migration order and generated
+TypeScript/Rust release-profile consistency all passed.
+
+The separate Copilot source-identity check now fails unchanged on upstream
+inputs: the merged OpenCode observability change adds its reserved key to the
+identity-bound Rust environment source without regenerating that provider
+attestation. All 72 inputs to that identity computation, including the manifest
+and historical/current fixtures, are identical to current master. This is an
+explicit inherited validation exception, not a claimed pass. This retention PR
+does not regenerate or claim new live qualification for a provider release
+identity. Fresh exact-head required CI/security and Greptile 5/5 remain merge
+gates; a real actionable review finding still requires repair.
+
+The local own-company-deadline P2 regression, fresh blank plugin fixture check
+and earlier historical failures remain documented above. No test assertion or
+timeout was weakened. No deployed suspension, external wake, full local suite
+or fleet-savings claim is made.
