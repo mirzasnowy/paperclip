@@ -8,7 +8,7 @@ import { onSkillVersionCacheChange } from "./skill-version-retention-notificatio
 import type { skillVersionRetentionService, SkillVersionPruneResult } from "./skill-version-retention.js";
 
 type RetentionService = ReturnType<typeof skillVersionRetentionService>;
-type ActiveCompany = { id: string; cursor: SkillVersionPruneResult["cursor"]; nextRunAt: number | null };
+type ActiveCompany = { id: string; cursor: SkillVersionPruneResult["cursor"]; nextRunAt: number | null; rescanOwed: boolean };
 
 export function registerSkillVersionRetentionWork(
   coordinator: ReturnType<typeof createDeliveryWorkCoordinator>,
@@ -50,12 +50,14 @@ export function registerSkillVersionRetentionWork(
       for (const [id, at] of freshScanAfter) if (at <= Date.now()) freshScanAfter.delete(id);
       for (const [id, at] of deadlines) if (at <= Date.now()) {
         dirty.add(id);
+        if (active?.id === id) active.rescanOwed = true;
         freshScanAfter.delete(id);
         deadlines.delete(id);
       }
       for (const [id, entries] of cacheChanges) {
         for (const [directory, at] of entries) if (at <= Date.now()) {
           dirty.add(id);
+          if (active?.id === id) active.rescanOwed = true;
           freshScanAfter.delete(id);
           entries.delete(directory);
         }
@@ -87,7 +89,7 @@ export function registerSkillVersionRetentionWork(
           const id = [...dirty].find(id => readyAt(id) <= Date.now());
           if (!id) break;
           dirty.delete(id);
-          active = { id, cursor: null, nextRunAt: null };
+          active = { id, cursor: null, nextRunAt: null, rescanOwed: false };
           deadlines.delete(id);
           cacheChanges.delete(id);
         }
@@ -111,7 +113,8 @@ export function registerSkillVersionRetentionWork(
             return;
           }
           if (result.truncated) break;
-          freshScanAfter.set(company.id, Date.now() + 30_000);
+          if (company.rescanOwed) freshScanAfter.delete(company.id);
+          else freshScanAfter.set(company.id, Date.now() + 30_000);
           if (company.nextRunAt !== null) deadlines.set(company.id, company.nextRunAt);
           active = null;
         } catch (err) {
