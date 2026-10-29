@@ -114,3 +114,46 @@ before a publication resumes processing. Final owning acceptance passes 162 case
 across retention, configuration, and startup, plus server typechecking. Earlier
 receipts remain tied to their recorded heads; integrated verification follows the
 parent skill-retention repair.
+
+## October 29 master reconciliation and current acceptance
+
+This existing archived-evidence slice was reconciled with the qualified retention
+parent through normal merges. The expiration service now exposes both the new
+saved evidence deadline and the parent's separate startup checkpoint methods.
+The finite checkpoint failure budget remains intact. The native retention fixture
+keeps its explicit external-database override and migrations while using the
+parent's fresh recovery-database helper by default. Identical logger/coordinator
+imports introduced by automatic composition were deduplicated. Every other path
+matches the automatic merge, and packages remain byte-identical to the parent.
+
+Current local acceptance is **285 passing unique cases across 11 complete files**,
+without skips. The original combined run passed 283 cases but failed two new
+startup fixtures because their mocked service omitted the preserved
+`registerCheckpointExpiration` method. Production startup correctly called that
+method. The fixture repair supplies the actual API and adds explicit assertions
+that enabled and disabled evidence configurations retain checkpoint registration,
+including while evidence reconstruction is held after HTTP readiness. The full
+100-case startup file then passed in 7.55 seconds, without weakening any prior
+assertion or timeout. The other ten complete files passed 185 cases and their
+source remained unchanged. Accepted source after that fixture-only repair is
+`da44dea2f3cd86cc72a25f2a419c63acafda1f7a`.
+
+Coverage includes real archived-evidence expiry, filesystem and path safety,
+inclusive retention boundaries, retry and paged continuation, preserved finite
+checkpoint startup work, backup cleanup/configuration, server wiring, shared
+deadline/coordinator and idle-work behavior, plus retained skill-cache behavior
+and its own-company expiry regression. Database build, production server
+typechecking/build, module boundaries, target migration order and Runner profile
+identity passed before the fixture-only correction; runtime source did not change
+afterward. Two fresh PostgreSQL 17 schemas plus per-file fixtures applied all 412
+journal entries through index 413. All temporary local fixture imports were
+restored exactly, and every selected test hash is bound in the acceptance record.
+
+The archive worker uses the evidence duty and performs no backup SQL. The backup
+duty and startup checkpoint owner remain distinct. Saved publication/retention
+boundaries and one-hour busy/failure retries retain nearer expiries and bounded
+one-second continuation pages. Unsubscription still precedes coordinator stop.
+Publication must adopt the actual merged skill-retention prerequisite and obtain
+fresh exact-head CI/security and reviews. No full local repository-suite, live
+provider, external wake, measured instance/database suspension or fleet-cost claim
+is made. Historical results and limitations above remain tied to their revisions.
