@@ -613,7 +613,7 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
   async function nextTimerHeartbeatAt(agent: typeof agents.$inferSelect, now = new Date()): Promise<number | null> {
     const policy = parseHeartbeatPolicy(agent);
     if (!policy.enabled || policy.intervalSec <= 0) return null;
-    // A zero cap needs a policy change, even if another cap is reached first.
+
     if (policy.maxDailyRuns === 0 || policy.maxDailyCostCents === 0) return null;
     if (policy.skipTimerWhenNoActionableWork && !(await hasActionableTimerWork(agent))) return null;
     const dueAt = new Date(agent.lastHeartbeatAt ?? agent.createdAt).getTime() + policy.intervalSec * 1000;

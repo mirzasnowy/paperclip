@@ -12,7 +12,7 @@ export function registerDeadlineWork(
     continuationMs?: number;
     // Optional batching latency for notifications; already-known deadlines still preempt it.
     notificationCoalesceMs?: number;
-    // Optional minimum spacing between scans, including known future deadlines.
+
     minimumSpacingMs?: number;
   },
 ) {
