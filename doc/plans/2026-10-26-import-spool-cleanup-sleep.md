@@ -173,3 +173,57 @@ period before cleanup and still emits its filesystem hint.
 All 52 owning tests pass after this repair. The new route test requires HTTP 200,
 exact file bytes, and the committed part receipt under the controlled race.
 Earlier review repairs and repeatable fixture evidence remain valid.
+
+## Current master integration and spool acceptance (2026-10-29)
+
+Accepted source `87549234b125464dc7fa216227fc9bfa1d93f3d7` contains reviewed parent `fb252c8b0e52ce355e7d98db2e392e4831f99c61`.
+The parent merged as `c8b7afee06c183ab922d097de1183d61c0bc4387`. A normal merge adopts the actual squash
+after proving complete parent-tree identity. The complete accepted child tree
+stays unchanged; only this audit follows in the publication.
+
+The composition proof preserves 1,237 parent-only paths, eight owned-only paths,
+11,521 identical paths, and two shared automatic merge results: app registration
+and delivery queue names. The sole manual conflict is in the documentation
+ledger. It keeps the parent's landed Grok status and the owned import-spool PR
+entry. There is no manual production resolution. Newly added narration and an
+orphaned old startup comment fragment were removed without changing behavior.
+Packages equal the parent byte for byte, including profile 80 and preserved
+historical profile fixtures. Other native worker services are unchanged.
+
+All 293 cases across eight complete server files pass with zero skips:
+
+- 18 real spool worker lifecycle cases exercise filesystem and database work.
+- 25 HTTP import-transfer cases cover uploaded bytes, receipts, and lifecycle.
+- Nine transfer-ledger cases cover its write and recovery contract.
+- Eight cloud capability-floor cases preserve disabled import behavior.
+- 114 portability cases preserve actual import/export consumer contracts.
+- 92 startup cases preserve lifecycle wiring and readiness.
+- 26 coordinator cases and one scoped deadline case cover shared mechanisms.
+
+This includes quiet absent and retained spool states without SQL or directory
+scans, strict saved deadlines, resume/apply races, nested commit/rollback, restart
+reconstruction, failed writes, permission and database errors, root/symlink
+boundaries, shutdown joining, and first/concurrent writes during drain. Storage
+is isolated with a task-owned PAPERCLIP_HOME and temporary spool roots. Three
+fresh PostgreSQL 17 databases use all 412 journal entries through tag/index
+0413_tired_kronos. No source adaptation, assertion, or timeout changes were needed.
+All eight test-file hashes remain exact.
+
+Database build, server production typecheck/build, module boundaries, migration
+order, and current Copilot identity pass. The test command takes 12.28 seconds.
+The parent's 4,192 selected native/resource cases belong to its recorded source;
+they are not presented as rerun or added to this slice's 293 cases. No full local
+repository, live provider, or deployed sleep acceptance is claimed.
+
+Earlier remote trusted-runner and Greptile service errors remain historical
+evidence. Neither is treated as a fresh pass. Publication must obtain current
+CI, security, and exact-head Greptile 5/5. The older Ponytail Ship verdict names
+a different head and is not current review evidence. Actual findings must be
+resolved; an older verdict cannot replace the current gate.
+
+Supported ledger writes use their transaction-aware notifications. Supported
+filesystem mutations use the spool owner callbacks. Direct writes from another
+process need their own ingress and can otherwise be discovered only at startup.
+Internal cleanup deadlines do not prove an external Cloud wake. Existing sleep
+blockers remain; no database suspension, external alarm coverage, or cost savings
+is claimed.
