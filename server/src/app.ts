@@ -1236,9 +1236,6 @@ export async function createApp(
     resolveDefaultImportTransferSpoolRoot(), () => !isWarmStandby() && !isIdleTaskDrainActive());
   registerBrowserUseCleanup(deliveryWork, browserUse, () => !isIdleTaskDrainActive());
 
-  // applies): apply jobs are in-memory in this single process, so any run
-  // still "applying" now was interrupted by the previous shutdown and would
-  // otherwise 409 every retry forever. Fail those stranded runs — their
 
   void companyTransferRunService
     .recoverStrandedApplyingRuns(db)
