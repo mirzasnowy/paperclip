@@ -196,7 +196,7 @@ describe("native environment release scheduling", () => {
       }
       expect(queries.filter(query => query.startsWith("select") && query.includes('"environment_leases"'))).toEqual([]);
     } finally { db.$client.options.debug = previous; }
-    const f = await seed(); await lease(f); await flush();
+    const f = await committed(); await lease(f); await flush();
     expect(release).toHaveBeenCalledTimes(1); await quiet();
   });
 
