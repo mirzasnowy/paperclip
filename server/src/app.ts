@@ -1235,11 +1235,11 @@ export async function createApp(
   const importSpoolCleanup = registerImportSpoolCleanupWork(db, deliveryWork,
     resolveDefaultImportTransferSpoolRoot(), () => !isWarmStandby() && !isIdleTaskDrainActive());
   registerBrowserUseCleanup(deliveryWork, browserUse, () => !isIdleTaskDrainActive());
-  // Startup only, never from the cleanup worker (that would kill live
+
   // applies): apply jobs are in-memory in this single process, so any run
   // still "applying" now was interrupted by the previous shutdown and would
   // otherwise 409 every retry forever. Fail those stranded runs — their
-  // spooled parts stay reusable. Ledger notifications refresh cleanup state.
+
   void companyTransferRunService
     .recoverStrandedApplyingRuns(db)
     .then((recovered) => {
