@@ -1847,7 +1847,7 @@ async function startServerWithDatabaseTeardown(
     if (config.heartbeatSchedulerEnabled) {
       const worker = heartbeat.registerExternalConversationSettlementWork(deliveryWork,
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby());
-      // Endpoint/task locks must not gate HTTP readiness; shutdown still joins.
+
       trackHeartbeatSchedulerWork(worker.ready);
     }
     if (config.heartbeatSchedulerEnabled) {

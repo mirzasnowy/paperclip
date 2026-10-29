@@ -5,11 +5,11 @@ import { persistActivity, publishActivity, type ActivityPublication } from "./ac
 
 export type ExternalConversationSettlementScope = { companyId: string; issueId?: string };
 
-/** Discovery and execution share the owner’s eligibility checks. Execution
- * reads them again under the endpoint -> issue locks used by admission. */
+
+
 async function readSettlement(db: Pick<Db, "select" | "execute">, companyId: string, issueId: string, lock = false) {
-  // Match chat admission's endpoint -> task lock order. A closed/revoked
-  // connection must not be resurrected by a late finalizer.
+
+
   const bindingQuery = db.select({ conversation: { id: chatConversations.id, state: chatConversations.state },
     endpoint: { provider: chatEndpoints.provider, assignedAgentId: chatEndpoints.assignedAgentId } })
     .from(chatConversations)
@@ -46,9 +46,9 @@ async function readSettlement(db: Pick<Db, "select" | "execute">, companyId: str
     !run.finishedAt ||
     run.scheduledRetryAt || ["plan_only", "empty_response"].includes(run.livenessState ?? "")) return null;
   if (run.runtimeMode === "native" && run.resultJson?.finalizationReasonCode !== "external_chat_response_waiting") return null;
-  // The published, server-selected response is the binding proof. Resolved
-  // questions can use an interaction continuation source and a board comment
-  // instead of an inbound Slack link; publication already enforced access.
+
+
+
   const context = run.contextSnapshot ?? {};
   const commentIds = [...new Set([
     context.wakeCommentId, context.commentId,
@@ -98,13 +98,13 @@ async function readSettlement(db: Pick<Db, "select" | "execute">, companyId: str
   return { binding, issue, run };
 }
 
-/** A ready conversation owns settlement before generic recovery may dispatch. */
+
 export async function pendingExternalConversationSettlement(db: Db, companyId: string, issueId: string) {
   return Boolean(await readSettlement(db, companyId, issueId));
 }
 
-/** Narrow keyset discovery excludes retained waiting/completed history. Being
- * an active conversation is only a candidate, never a recurring obligation. */
+
+
 export function externalConversationSettlementCandidates(db: Db, scope?: ExternalConversationSettlementScope, after?: string) {
   return db.select({ id: issues.id, companyId: issues.companyId }).from(issues).where(and(
     eq(issues.originKind, "chat_channel"), eq(issues.status, "in_progress"),

@@ -386,16 +386,16 @@ export function createHeartbeatScheduling(
     }
 
     const recoveryKey = `issue-monitor-recovery:${input.claimed.id}:${input.scheduledAtIso}`;
-    // The limit reason may change before a failed clear is retried. The
-    // scheduled monitor identifies the obligation, including older receipts.
+
+
     const acceptedRecoveryKeys = [
       recoveryKey,
       `issue-monitor-recovery:${input.claimed.id}:max_attempts_exhausted:${input.scheduledAtIso}`,
       `issue-monitor-recovery:${input.claimed.id}:timeout_exceeded:${input.scheduledAtIso}`,
     ];
-    // A saved key alone does not deduplicate enqueueWakeup. Reuse a receipt
-    // bound to an admitted run before retrying a handoff after restart. The
-    // monitor claim guard fences competing claimants at queue admission.
+
+
+
     const [accepted] = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests)
       .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, agentWakeupRequests.runId),
         eq(heartbeatRuns.companyId, agentWakeupRequests.companyId),
@@ -496,9 +496,9 @@ export function createHeartbeatScheduling(
       }
     }
 
-    // The schedule is the pending handoff. A crash before admission can retry
-    // it; a crash after admission reuses the existing recovery idempotency key.
-    // Consume only this claim, preserving any monitor installed by the new run.
+
+
+
     const publications: ActivityPublication[] = [];
     const cleared = await db.transaction(async tx => {
       await notifyIssueReviewState(tx, { companyId: input.claimed.companyId, issueId: input.claimed.id });

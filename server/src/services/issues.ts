@@ -11508,7 +11508,7 @@ export function issueService(db: Db) {
           || patch.monitorNextCheckAt !== undefined || patch.hiddenAt !== undefined || patch.originKind !== undefined
           || patch.originId !== undefined || patch.conversationAgentId !== undefined || patch.assigneeAgentId !== undefined
           || patch.assigneeUserId !== undefined || blockedByIssueIds !== undefined) {
-          // Completing/reopening a blocker changes its dependent conversations too.
+
           const affectsDependents = patch.status !== undefined && patch.status !== receiptExisting.status
             && (patch.status === "done" || receiptExisting.status === "done");
           await notifyExternalConversationSettlement(tx, { companyId: receiptExisting.companyId,

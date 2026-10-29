@@ -4597,8 +4597,8 @@ export function recoveryService(
     for (const issue of candidates) {
       if (issue.originKind === "chat_channel") {
         if (opts?.skipExternalConversationSettlement) {
-          // The settlement worker owns an answered turn before generic recovery
-          // may dispatch another run. Keep that ordering while delegating writes.
+
+
           if (await pendingExternalConversationSettlement(db, issue.companyId, issue.id)) {
             result.skipped += 1;
             continue;

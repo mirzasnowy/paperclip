@@ -1418,8 +1418,8 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       }
       await tx.update(agentWakeupRequests)
         .set({ status, ...patch, updatedAt: new Date() })
-        // Reassignment revokes requests transactionally. Late execution settlement
-        // must not turn a revoked request back into authority for a later retry.
+
+
         .where(and(eq(agentWakeupRequests.id, wakeupRequestId), ne(agentWakeupRequests.status, "cancelled")));
     });
   }

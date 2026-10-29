@@ -9398,8 +9398,8 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       processGroupId: null,
     });
     mockTerminateLocalService.mockResolvedValueOnce(undefined);
-    // Fail the actual status write, including writes through a transaction.
-    // A root db.update spy misses the transaction-owned lifecycle path.
+
+
     await db.execute(sql.raw(
       `create function test_process_cancellation_fault() returns trigger language plpgsql as $$
        begin

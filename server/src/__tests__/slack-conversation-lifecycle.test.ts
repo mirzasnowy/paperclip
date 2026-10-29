@@ -186,7 +186,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const [receipt] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.idempotencyKey, key));
     expect(receipt).toMatchObject({ reason: "issue_execution_same_name", status: "coalesced", runId: f.runId });
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.runId));
-    // Simulate restart after admission committed but before the monitor cleared.
+
     await scheduler.triggerIssueMonitor(f.issueId);
     expect(enqueue).not.toHaveBeenCalled();
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]!.monitorNextCheckAt).toBeNull();
@@ -311,8 +311,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       } else {
         const comments = await db.select().from(issueComments).where(eq(issueComments.issueId, f.issueId));
         expect(comments.some(comment => comment.body.includes("Recovery policy: escalate_to_board"))).toBe(true);
-        // The existing escalation writer adds a board-visible comment. It is new
-        // unresolved work, so clearing the monitor alone must not settle the turn.
+
+
         expect(await state(f)).toMatchObject({ status: "in_progress", externalConversationState: "active" });
         expect(enqueue).not.toHaveBeenCalled();
       }
