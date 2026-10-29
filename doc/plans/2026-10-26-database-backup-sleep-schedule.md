@@ -97,3 +97,37 @@ Workspace typechecking and the full build passed. The repository-wide local
 `test:run` remains unverified under the previously recorded embedded PostgreSQL
 capacity limitation; targeted suites are not a substitute claim. Remote CI and
 review acceptance are separate and remain pending until checked at the PR head.
+
+## October 29 master reconciliation and current acceptance
+
+The current merge campaign carries this existing backup slice through the
+reviewed import-spool parent in #17835 and targets master after that parent lands.
+The normal parent merge preserved the backup worker, production registration and
+all four selected test files byte for byte. Parent changes since qualification
+are the import-spool audit and its inherited tool-access concurrency test repair;
+they do not change backup execution or scheduling. No packages, schema, backup
+format, interval policy, or sleep gate are added by this reconciliation.
+
+Qualification at source `11775eee7ed795b989cbb31052e69643c468c3cf` passed
+**130 cases in four complete files**, without skips, in 7.24 seconds:
+`database-backup-work`, `server-startup-feedback-export`, `scoped-deadline-work`
+and `delivery-work-coordinator`. The tests cover deadline replacement, no work
+before a deadline, drain and standby admission, retry after failure, busy-owner
+skips, slow callbacks, coordinator stop and startup checkpoint-marker behavior.
+Database package build, production server typechecking and build, module
+boundaries, target migration order and Runner profile identity also passed.
+The reviewed runtime and these four test sources remain identical to that
+accepted source; a documentation-only publication does not claim another run.
+
+The package tree remains the already qualified profile-80 parent tree. Historical
+six-suite and real JavaScript backup/restore probe results above remain evidence
+for their original revisions. This current four-file acceptance does not claim
+a repeated physical backup/restore probe, a pg_dump qualification, a full local
+repository-suite pass, live provider acceptance, measured host suspension or cost
+savings. Fresh CI, security and review results must be checked on the final
+published head separately.
+
+Automatic backups remain a genuine scheduled obligation. The shared deadline is
+visible internally, but it is not a persisted external Cloud wake alarm. Existing
+checkpoint and host-sleep gates still govern whether an instance may suspend.
+Shutdown still joins an active backup whose executor has no AbortSignal contract.
