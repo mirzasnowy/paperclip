@@ -1847,7 +1847,7 @@ async function startServerWithDatabaseTeardown(
     if (config.heartbeatSchedulerEnabled) {
       const worker = heartbeat.registerNativeRecoveryNoticeWork(deliveryWork,
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby());
-      // Notice settlement may wait on task locks; retain shutdown ownership.
+
       trackHeartbeatSchedulerWork(worker.ready);
     }
     if (config.heartbeatSchedulerEnabled) {

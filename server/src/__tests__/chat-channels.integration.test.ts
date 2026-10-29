@@ -74487,13 +74487,13 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       });
       expect(await pendingNativeRecoveryNotices(db, scope)).toHaveLength(1);
       await db.transaction(async tx => {
-        // Pause the notice transaction after the same first lock taken by its
-        // owner, then let the actual reply owner reach that contended row.
+
+
         await tx.select().from(nativeRunFinalizations)
           .where(eq(nativeRunFinalizations.runId, scope.runId)).for("update");
         const [backend] = await tx.execute(sql`select pg_backend_pid() as pid`) as unknown as Array<{ pid: number }>;
         response = recoverCommittedNativeChatResponse(db, { ...scope, onlyWhenDue: true });
-        // Observe rejection immediately while retaining it for the final assertion.
+
         void response.catch(() => {});
         await vi.waitFor(async () => {
           const [state] = await db.execute(sql`select exists (

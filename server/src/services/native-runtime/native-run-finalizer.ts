@@ -740,8 +740,8 @@ export async function recoverCommittedNativeChatResponse(
   try {
     materialized = await db.transaction(async (transaction) => {
       const tx = transaction as unknown as Db;
-      // Share coordinator -> issue -> run ordering with status, workspace, and
-      // recovery-notice owners; presentation may repair the same committed run.
+
+
       const [coordinator] = await tx
         .select()
         .from(nativeRunFinalizations)
