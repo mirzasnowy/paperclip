@@ -14,7 +14,9 @@ import { hasAcknowledgedNativeStopIntent } from "../acknowledged-native-stop.js"
 import { logger } from "../../middleware/logger.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";
 
-export async function preserveNativeFailedWorkspace(db: Db, selected: typeof heartbeatRuns.$inferSelect, options: { allowPreterminal?: boolean; requireCancelledStop?: boolean; restartRecovery?: NativeRestartRecoveryClaim } = {}) {
+export async function preserveNativeFailedWorkspace(db: Db, selected: Pick<typeof heartbeatRuns.$inferSelect,
+  "id" | "companyId" | "nativeIssueId" | "issueId" | "contextSnapshot" | "runnerProfileJson">,
+  options: { allowPreterminal?: boolean; requireCancelledStop?: boolean; restartRecovery?: NativeRestartRecoveryClaim } = {}) {
   if (readNativeWorkspaceSyncReference(selected.runnerProfileJson?.nativeWorkspaceSync)?.state !== "prepared") return;
   const issueId = selected.nativeIssueId ?? selected.issueId ?? selected.contextSnapshot?.issueId;
   if (typeof issueId !== "string") return;
@@ -35,7 +37,7 @@ export async function preserveNativeFailedWorkspace(db: Db, selected: typeof hea
       && claim.runId === selected.id && claim.leaseOwner === coordinator.leaseOwner
       && claim.controllerGeneration === coordinator.controllerGeneration && claim.providerAttempt === coordinator.attempt
       && coordinator.leaseExpiresAt && coordinator.leaseExpiresAt.getTime() > Date.now()
-      && (claim.kind !== "reattach_remote_runner" || (claim.remote.providerLeaseId === reference.providerLeaseId
+      && (claim.kind !== "reattach_remote_runner" || (claim.remote.kind !== "plugin_task" && claim.remote.providerLeaseId === reference.providerLeaseId
         && claim.remote.remoteCwd === reference.remoteCwd)));
     if ((coordinator?.leaseOwner || (claim && coordinator?.phase === "observed")) && !ownsClaim) throw new NativeWorkspaceFinalizationBusyError();
     if (!coordinator || coordinator.resultId
@@ -47,7 +49,7 @@ export async function preserveNativeFailedWorkspace(db: Db, selected: typeof hea
     if (options.requireCancelledStop && (run.status !== "cancelled" || !hasAcknowledgedNativeStopIntent(run))) return;
     const currentReference = readNativeWorkspaceSyncReference(run.runnerProfileJson?.nativeWorkspaceSync);
     if (!currentReference || currentReference.state !== "prepared"
-      || (claim?.kind === "reattach_remote_runner" && (claim.remote.providerLeaseId !== currentReference.providerLeaseId
+      || (claim?.kind === "reattach_remote_runner" && (claim.remote.kind === "plugin_task" || claim.remote.providerLeaseId !== currentReference.providerLeaseId
         || claim.remote.remoteCwd !== currentReference.remoteCwd))) return;
     const [source] = await tx.select().from(environmentLeases).where(and(
       eq(environmentLeases.id, currentReference.leaseId), eq(environmentLeases.companyId, run.companyId),

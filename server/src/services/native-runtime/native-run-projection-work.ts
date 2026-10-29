@@ -9,8 +9,8 @@ import { pendingNativeRunProjectionCondition, projectCommittedRun } from "./nati
 
 type Entry = { id: string; companyId: string; issueId: string; dueAt: number };
 
-/** Repairs the run projection only. Status decisions, external consequences and
- * resource settlement retain their own owners and pending contracts. */
+
+
 export function nativeRunProjectionWork(db: Db, project = projectCommittedRun) {
   function candidates(scope?: NativeRunProjectionScope, after?: string) {
     return db.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, issueId: nativeRunFinalizations.issueId })

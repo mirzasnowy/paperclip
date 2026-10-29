@@ -909,8 +909,8 @@ describeEmbeddedPostgres("company import transfer routes", () => {
       .where(eq(companyTransferRuns.id, transferId));
     const record = companyTransferRunService.completePart.bind(companyTransferRunService);
     const interleave = vi.spyOn(companyTransferRunService, "completePart").mockImplementationOnce(async (...args) => {
-      // The file is already renamed, but the part receipt and its activity
-      // timestamp have not committed. Exercise the real deletion claim here.
+
+
       await sweepAbandonedImportTransferSpools(db, spoolRoot);
       return record(...args);
     });

@@ -556,6 +556,59 @@ suite(
         try { await vi.advanceTimersByTimeAsync(ms); expect(select).not.toHaveBeenCalled(); expect(transaction).not.toHaveBeenCalled(); expect(execute).not.toHaveBeenCalled(); }
         finally { select.mockRestore(); transaction.mockRestore(); execute.mockRestore(); }
       }
+      it("bounds reconstruction and resets its cursor on same-owner restart", async () => {
+        vi.useFakeTimers({ toFake: ["Date"] });
+        const f = await transfer(), due = Date.now() + 300_000;
+        await db.update(chatTeamsFileTransfers).set({ expiresAt: new Date(due) }).where(eq(chatTeamsFileTransfers.id, f.created.id));
+        for (let index = 0; index < 104; index++) {
+          const publicationId = randomUUID();
+          await db.insert(chatPublications).values({ id: publicationId, companyId: f.a.companyId,
+            endpointId: f.a.endpointId, conversationId: f.a.conversationId, issueId: f.a.issueId,
+            commentId: f.a.commentId, idempotencyKey: `expiry-restart:${publicationId}`,
+            payload: { text: "Same authorized file", attachmentIds: [f.a.attachmentId] } });
+          const a = { ...f.a, publicationId };
+          const created = await teamsFileTransferService(db, { ...f.opts, authorize: async () => a }).issue(a, new Date(due));
+          transferIds.push(created.id);
+        }
+        vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: false });
+        const counts: number[] = [], select = db.select.bind(db);
+        const reads = vi.spyOn(db, "select").mockImplementation((...args) => {
+          const selection = select(...args), from = selection.from.bind(selection);
+          vi.spyOn(selection, "from").mockImplementation(table => {
+            const query = from(table);
+            if (table === chatTeamsFileTransfers) {
+              const execute = query.execute.bind(query);
+              vi.spyOn(query, "execute").mockImplementation(async () => {
+                const rows = await execute(); counts.push(rows.length); return rows;
+              });
+            }
+            return query;
+          });
+          return selection;
+        });
+        const expire = vi.fn(f.service().expireUnusedConsent), work = teamsConsentExpiryWork(db, expire);
+        const start = () => {
+          coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => enabled, canReconcile: () => true, onError: error => errors.push(error) });
+          return work.register(coordinator, () => enabled).ready;
+        };
+        try {
+          await start(); expect(counts.reduce((sum, count) => sum + count, 0)).toBe(100);
+          await coordinator!.stop(); coordinator = undefined;
+          const before = counts.length;
+          await start(); expect(counts.slice(before).reduce((sum, count) => sum + count, 0)).toBe(100);
+          await vi.advanceTimersByTimeAsync(1000);
+          await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(due), { interval: 0 });
+          expect(Math.max(...counts)).toBeLessThanOrEqual(100); reads.mockRestore();
+          expect(await work.load()).toHaveLength(105);
+          await quiet(1000); expect(expire).not.toHaveBeenCalled();
+          await vi.advanceTimersByTimeAsync(due - Date.now()); await settled();
+          expect(expire).toHaveBeenCalledTimes(105);
+          expect(await db.select().from(chatTeamsFileTransfers).where(inArray(chatTeamsFileTransfers.id, transferIds)))
+            .toEqual(expect.arrayContaining([expect.objectContaining({ id: f.created.id, phase: "expired" })]));
+          expect(await work.load()).toEqual([]); expect(errors).toEqual([]);
+          await quiet(); expect(f.opts.postConsent).not.toHaveBeenCalled(); expect(f.opts.uploadRequest).not.toHaveBeenCalled();
+        } finally { reads.mockRestore(); }
+      }, 30_000);
       it("is quiet with configured endpoints and cancelled history", async () => {
         const f = await transfer(); await f.service().cancel(f.a.companyId, f.created.id);
         const expire = vi.fn(f.service().expireUnusedConsent);

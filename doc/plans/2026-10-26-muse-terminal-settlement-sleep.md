@@ -180,3 +180,61 @@ being delayed to the settlement retry. It now proves the exact expiry is
 registered and enforced while assignment debt remains, then disarms after
 settlement with no recurring SQL. All 15 maintenance lifecycle cases passed.
 Integrated typecheck, build, and remote checks remain required.
+
+## Current master integration and quiet producers (2026-10-29)
+
+Production source `584015018ed4a9d57d2b0f192b75847503b54e53` contains reviewed parent `b256bb52647affd9f5279ea8c40f48bbe40f031f`.
+The parent is merged as `4d0847c4ca2912af72506e3374e34536b4f39943`. A normal merge adopts its actual squash
+with the complete accepted child tree unchanged. Final publication adds only
+audit text, a parent migration-count clarification, and the proved Photon regression extension; production stays byte
+for byte identical to the accepted source.
+
+The composition proof preserves 1,215 parent-only paths, 14 owned-only paths,
+11,515 identical paths, and 16 automatic shared results. The only manual
+resolution adds Muse settlement inside the existing ordinary issue/run guard
+in native finalization notifications. Packages equal the parent, including
+current Copilot profile 80 and preserved historical profile fixtures.
+
+A real Muse regression proves why the guard matters. Three routine company-only
+finalization hints cause six settlement candidate SELECTs when only the new
+Muse fanout is moved outside the guard. That controlled baseline fails the quiet
+assertion. With the guard retained, the same case passes with zero candidate
+SELECTs; a real terminal run change still finalizes the assignment and returns
+to quiet. The test hash is identical across the red/green pair, and the temporary
+production change restores exactly. Real company or binding changes retain
+their existing global/scoped signals. No new table, poll, or producer wrappers
+were added.
+
+The parent review also raised a Photon per-event settlement warning. Real
+callbacks disprove that finding. The callback locks and rereads the endpoint
+and accepts only attention status before notifying a recovery transition. Five
+active assertions before and five after recovery emit zero settlement hints and
+candidate SQL. Three concurrent attention assertions emit exactly one hint and
+one candidate SELECT, then the endpoint is active. The complete 24-case Photon
+file passes on production source `584015018ed4a9d57d2b0f192b75847503b54e53`. The relevant Photon and settlement
+production files equal the parent's reviewed source byte for byte. This slice
+keeps the fourth queue in the existing parameterized regression. The parent's
+security service accepted the resolved finding and returned a clean exact-head
+check before its protected merge; no security check was waived.
+
+Acceptance covers 3,715 distinct cases across 52 complete server test files, plus
+20 targeted chat integration cases (3,735 selected cases total). The 49-file
+main batch passes 3,008 cases in 474.27 seconds. Separate process recovery passes
+410, review response passes 273, and the Photon file passes 24. The targeted chat
+selection includes committed-response recovery and both passive/missing GitHub
+idle cases from the earlier remote failure; 1,794 other chat cases are excluded.
+The 52 original selected test files restore exactly after fixture imports; the
+additional Photon test is bound to its passing proof by SHA-256.
+
+Database build, server production typecheck/build, module boundaries, migration
+order, and profile identity pass. Fixtures use 34 prepared fresh PostgreSQL 17
+databases with 412 applied migration receipts through journal tag 0413_tired_kronos, plus fresh helper-owned databases.
+
+Failure records remain: the controlled unscoped Muse baseline failed as
+expected; the earlier remote chat passive-idle failure is preserved and is
+covered by the new targeted selection. The parent's original 15-second handoff
+timeout and fresh unchanged 89-case pass remain in its audit. No assertion or
+timeout changed. Fresh publication-head CI and exact-head Greptile 5/5 remain
+required. This is not full repository or full chat-suite acceptance, live Muse or
+Copilot qualification, deployed sleep, database suspension, external alarm
+coverage, or a fleet cost claim. Existing Cloud sleep blockers remain.

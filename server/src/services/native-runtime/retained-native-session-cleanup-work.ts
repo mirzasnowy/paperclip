@@ -7,8 +7,8 @@ import { findRetainedNativeSessionCleanupCandidates, pendingRetainedNativeSessio
   type RetainedNativeSessionCleanup } from "./retained-native-session-cleanup.js";
 
 type Entry = { id: string; companyId: string; issueId: string; agentId: string; dueAt: number };
-// An unowned live PID has no local completion callback. Probe only the retained
-// run awaiting that process; disappearance permits rechecking proof, not launch.
+
+
 const PROCESS_EXIT_PROBE_MS = 30_000;
 
 export function retainedNativeSessionCleanupWork(db: Db, cleanup: RetainedNativeSessionCleanup) {
@@ -42,8 +42,8 @@ export function retainedNativeSessionCleanupWork(db: Db, cleanup: RetainedNative
     if (result.status !== "deferred") return null;
     if (result.waitFor === "lease_expiry") return { ...entry, dueAt: result.retryAt.getTime() };
     if (result.waitFor === "process_exit") return { ...entry, dueAt: Date.now() + PROCESS_EXIT_PROBE_MS };
-    // Session/environment/maintenance owners signal release. Retained history
-    // and immutable proof refusals must not keep a fallback scan alive.
+
+
     return null;
   }
   function register(coordinator: ReturnType<typeof createDeliveryWorkCoordinator>, canRun: () => boolean) {

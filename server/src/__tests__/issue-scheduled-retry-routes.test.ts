@@ -543,6 +543,28 @@ describeEmbeddedPostgres("issue scheduled retry routes", () => {
       } finally { await restarted.stop(); }
     });
 
+    it("manual recovery starts cancellation without loading the full backlog", async () => {
+      const f = await seedIssueWithRetry({ agentStatus: "paused" });
+      const work = await db.insert(heartbeatRuns).values(Array.from({ length: 120 }, () => ({
+        companyId: f.companyId, agentId: f.agentId, status: "scheduled_retry", resultJson: intent(),
+      }))).returning({ id: heartbeatRuns.id });
+      const service = heartbeatService(db, { runtimeEnv: {} });
+      const reads = vi.spyOn(db, "select");
+      let readsBeforeFirstCancellation: number | undefined;
+      try {
+        await createScheduledRetryCancellationRecovery(db, async (...args) => {
+          readsBeforeFirstCancellation ??= reads.mock.calls.filter(([fields]) => fields &&
+            "result" in fields && "errorCode" in fields).length;
+          return service.cancelRun(...args);
+        }).sweep();
+        expect(readsBeforeFirstCancellation).toBe(2);
+        const states = await db.select({ status: heartbeatRuns.status }).from(heartbeatRuns)
+          .where(inArray(heartbeatRuns.id, work.map(row => row.id)));
+        expect(states.filter(row => row.status === "cancelled")).toHaveLength(20);
+        expect(states.filter(row => row.status === "scheduled_retry")).toHaveLength(100);
+      } finally { reads.mockRestore(); }
+    });
+
     it("pages past malformed intents and drains fair batches without revisiting completed history", async () => {
       const a = await seedIssueWithRetry({ agentStatus: "paused" });
       const b = await seedIssueWithRetry({ agentStatus: "paused" });
@@ -560,12 +582,17 @@ describeEmbeddedPostgres("issue scheduled retry routes", () => {
       const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError: error => { throw error; } });
       try {
         await heartbeatService(db, { runtimeEnv: {} }).registerScheduledRetryCancellationWork(coordinator, () => true).ready;
+        expect((await states()).filter(row => row.status === "cancelled")).toHaveLength(0);
+        const earlierId = "00000000-0000-4000-8000-000000000000";
+        await writeIntent({ companyId: a.companyId, retryRunId: earlierId });
+        work.push({ id: earlierId });
+        await vi.advanceTimersByTimeAsync(1000);
+        await expect.poll(async () => (await states()).filter(row => row.status === "cancelled").length).toBe(20);
         const initial = (await states()).filter(row => row.status === "cancelled");
-        expect(initial).toHaveLength(20);
         expect(new Set(initial.map(row => row.companyId)).size).toBe(2);
         await vi.waitFor(async () => {
           await vi.advanceTimersByTimeAsync(1000);
-          expect((await states()).filter(row => row.status === "cancelled")).toHaveLength(28);
+          expect((await states()).filter(row => row.status === "cancelled")).toHaveLength(29);
         }, { timeout: 10_000 });
         await expect.poll(() => idleWorkSnapshot().active).toBe(0);
         await vi.advanceTimersByTimeAsync(1000);

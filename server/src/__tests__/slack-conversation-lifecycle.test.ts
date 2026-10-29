@@ -15,6 +15,10 @@ import { idleWorkSnapshot } from "../services/task-admission.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { externalConversationSettlementWork } from "../services/external-conversation-settlement-work.js";
+import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
+import { notifyChatRunMilestones } from "../services/chat-run-milestone-notifications.js";
+import { notifyChatInboundWakeNotices } from "../services/chat-inbound-wake-notice-notifications.js";
+import { notifyChatResponseAvailability } from "../services/chat-response-availability.js";
 import { issueApprovalService } from "../services/issue-approvals.js";
 import express from "express";
 import request from "supertest";
@@ -186,7 +190,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const [receipt] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.idempotencyKey, key));
     expect(receipt).toMatchObject({ reason: "issue_execution_same_name", status: "coalesced", runId: f.runId });
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.runId));
-    // Simulate restart after admission committed but before the monitor cleared.
+
     await scheduler.triggerIssueMonitor(f.issueId);
     expect(enqueue).not.toHaveBeenCalled();
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]!.monitorNextCheckAt).toBeNull();
@@ -230,6 +234,45 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       try { await vi.advanceTimersByTimeAsync(120_000); await delay(10); expect(queries).toEqual([]); }
       finally { db.$client.options.debug = prior; }
     }
+    it.each(["native finalization", "chat milestone"] as const)("ignores routine company-only settlement hints from %s and resumes on execution release", async producer => {
+      const f = await fixture(true);
+      await db.update(issues).set({ executionRunId: f.runId }).where(eq(issues.id, f.issueId));
+      await start(); await flush(); await quiet();
+      const previous = db.$client.options.debug;
+      const queries: string[] = [];
+      db.$client.options.debug = (_id, query) => {
+        if (query.includes('"issues"') && query.includes("chat_conversations")) queries.push(query);
+      };
+      try {
+        for (let index = 0; index < 3; index += 1) {
+          await db.transaction(async tx => {
+            if (producer === "native finalization") await notifyNativeFinalizationWork(tx, { companyId: f.companyId });
+            else await notifyChatRunMilestones(tx, { companyId: f.companyId });
+          });
+          await flush();
+        }
+        expect(queries).toEqual([]);
+      } finally { db.$client.options.debug = previous; }
+      await issueService(db).update(f.issueId, { executionRunId: null });
+      await flush();
+      expect(await state(f)).toMatchObject({ status: "in_review", externalConversationState: "waiting" });
+      await quiet();
+    });
+
+    it.each(["inbound notice", "response availability"] as const)("keeps real company-wide %s settlement notifications enabled", async producer => {
+      const f = await fixture(true);
+      await db.update(issues).set({ executionRunId: f.runId }).where(eq(issues.id, f.issueId));
+      await start(); await flush(); await quiet();
+      await db.transaction(async tx => {
+        if (producer === "inbound notice") await notifyChatInboundWakeNotices(tx, { companyId: f.companyId });
+        else await notifyChatResponseAvailability(tx, { companyId: f.companyId });
+        await tx.update(issues).set({ executionRunId: null }).where(eq(issues.id, f.issueId));
+      });
+      await flush();
+      expect(await state(f)).toMatchObject({ status: "in_review", externalConversationState: "waiting" });
+      await quiet();
+    });
+
     it("reconstructs answered turns and becomes quiet with retained history", async () => {
       const f = await fixture(true); await start(); await flush();
       expect(await state(f)).toMatchObject({ status: "in_review", externalConversationState: "waiting" });
@@ -311,8 +354,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       } else {
         const comments = await db.select().from(issueComments).where(eq(issueComments.issueId, f.issueId));
         expect(comments.some(comment => comment.body.includes("Recovery policy: escalate_to_board"))).toBe(true);
-        // The existing escalation writer adds a board-visible comment. It is new
-        // unresolved work, so clearing the monitor alone must not settle the turn.
+
+
         expect(await state(f)).toMatchObject({ status: "in_progress", externalConversationState: "active" });
         expect(enqueue).not.toHaveBeenCalled();
       }

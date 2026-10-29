@@ -1,3 +1,4 @@
+import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
 import { recordNativeWorkspaceFinalizationFailure } from "../services/native-runtime/native-workspace-finalizer.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { createHeartbeatLifecycle, type HeartbeatLifecycleDependencies } from "../services/heartbeat/run-lifecycle.js";
@@ -168,8 +169,8 @@ describe("native environment release scheduling", () => {
     const work = nativeEnvironmentSettlementWork(db, settle);
     try {
       const entries = await work.load({ companyId });
-      // Only explicit destruction can recover a failed retained lease, even
-      // with an export retry. Unknown workspace references stay conservative.
+
+
       expect(entries.map(entry => entry.id)).toEqual([fixtures[0].runId]);
       expect(await work.check(entries[0])).toMatchObject({ id: fixtures[0].runId });
       expect(settle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ runId: fixtures[0].runId, succeeded: true }));
@@ -182,6 +183,21 @@ describe("native environment release scheduling", () => {
     const stored = await read(fixtures[0].runId);
     expect(stored.runnerProfileJson?.savedInputs).toBe(payload);
     expect(stored.resultJson?.savedOutput).toBe(payload);
+  });
+
+  it("ignores routine company-only finalization hints and still releases a real native lease", async () => {
+    await start(); await quiet();
+    const previous = db.$client.options.debug, queries: string[] = [];
+    db.$client.options.debug = (_id, query) => queries.push(query);
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await db.transaction(tx => notifyNativeFinalizationWork(tx, { companyId }));
+        await flush();
+      }
+      expect(queries.filter(query => query.startsWith("select") && query.includes('"environment_leases"'))).toEqual([]);
+    } finally { db.$client.options.debug = previous; }
+    const f = await committed(); await lease(f); await flush();
+    expect(release).toHaveBeenCalledTimes(1); await quiet();
   });
 
   it("stays quiet with no release debt and wakes on a lease committed after finalization", async () => {
@@ -206,8 +222,8 @@ describe("native environment release scheduling", () => {
     try {
       await start(); await flush();
       expect(release).toHaveBeenCalledTimes(bindings.length);
-      // Startup reconstructs all runs once. Subsequent notifications must be
-      // scoped to the lease owner, even when settlement itself emits the write.
+
+
       expect(discovery.filter(read => !bindings.some(binding => read.parameters.includes(binding.runId))))
         .toHaveLength(1);
       await quiet();
@@ -427,8 +443,8 @@ describe("native environment release scheduling", () => {
     const acquired = await environmentService(db).acquireLease({ companyId, environmentId: sandboxId,
       heartbeatRunId: binding.runId, issueId: binding.issueId, leasePolicy: "ephemeral", provider: "e2b", providerLeaseId: "fresh-stop" });
     await start(); expect(stopOnly).toHaveBeenCalledTimes(1);
-    // The fixture proves dispatch, not a provider stop receipt. Explicitly settle
-    // its row so the test does not leave synthetic cleanup debt behind.
+
+
     await environmentService(db).releaseLease(acquired.id, "released", { cleanupStatus: "success" }); await quiet();
   });
 

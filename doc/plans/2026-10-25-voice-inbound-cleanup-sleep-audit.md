@@ -1,6 +1,7 @@
 # Inbound voice admission cleanup sleep audit
 
-Baseline: voice reply PR #17578, head 439d0a86eb75c129c30742a8cc24bf18e2a6ebf3.
+Original baseline: voice reply PR #17578, head 439d0a86eb75c129c30742a8cc24bf18e2a6ebf3.
+Current integrated parent: d2c0a7de8c3e9cac8382b1268f3f5d883a2067b3.
 Branch: codex/sleep-23-voice-inbound-cleanup.
 Status: cleanup implementation and local verification complete; publication and remote acceptance pending.
 
@@ -284,3 +285,135 @@ controlled case pass. The five-second assertion budget and all product code rema
 unchanged. With the temporary provider delay removed, all 13 lifecycle tests pass.
 This repairs test clock ownership; it does not weaken provider retries or delivery
 fairness. Current-head CI remains required.
+
+
+## Current-parent acceptance and bounded discovery, October 28
+
+This revision normally merges reply parent `d2c0a7de8c3e9cac8382b1268f3f5d883a2067b3`.
+It keeps the parent's paged shared worker, failure isolation, denial restoration,
+and publication-scoped reply signals. It adds no new shared scheduler contract.
+Domain SQL and termination decisions remain in the inbound voice owner.
+
+The previous cleanup `load` read every page before yielding. An actual 105-row
+pending-admission fixture failed its first-pass budget: 105 selected rows instead
+of 100. The registered worker now reads one page per scope refresh and returns
+`{ rows, complete }` through the parent's existing contract. The explicit one-shot
+`load` still returns complete inventory for its foreground callers. Each query is
+limited to 100 rows. Refresh cursors advance only after a successful, non-aborted
+read. Registration resets them when the same service owner restarts.
+
+The new lifecycle case stops after the first page of 105 future admissions,
+re-registers the same service, reconstructs the original expiry, and confirms
+all 105 terminations. It checks no SQL or provider calls before the deadline and
+no recurring work after settlement. Removing the registration cursor reset fails
+at the real restarted read (5 rows instead of 100). These measurements cover
+selected rows, not physical PostgreSQL tuple visits or deployed resource cost.
+
+The fresh external fixture first failed because it assumed the admission schema
+already existed. It now runs the application migrator before setup, with the
+standard embedded-database setup budget. This repairs setup ownership; it does
+not skip any cleanup or authority assertions.
+
+### Migration lineage and bounded historical backfill
+
+The parent includes native checkpoint migration 0394. The old, unmerged inbound
+0392 migration cannot overwrite that history. The complete parent migration tree
+and client were restored, then the existing schema edit was regenerated with
+`pnpm db:generate`. The new migration is `0395_married_the_hand.sql`. Its generated
+snapshot links the parent snapshot. All 393 historical SQL files and all prior
+journal entries are byte-for-byte preserved. The five retained snapshots are
+0391 through 0395; the generator's required deletion of 0390 is included.
+
+The nullable columns and partial index remain replayable. The concurrent index
+and batch backfill use the application's existing top-level migration protocol.
+The original unbounded historical UPDATE is now an indexed keyset scan of at
+most 1,000 unconfirmed admission IDs per transaction. It commits each batch.
+The first page includes the nil UUID. Each batch retains the original ended-state
+and same-company signed termination-evidence predicate. It does not confirm a
+call from its label alone. No new queue table or temporary production index is
+introduced. The existing activity entity index supports the evidence lookup.
+
+The real migrator regression creates and drops its own database. It covers fresh
+migration, invalid concurrent-index repair, two simultaneous replays, and a single
+migration receipt. It confirms 1,007 eligible historical rows across multiple
+actual transaction IDs, with at most 1,000 updates in one transaction. Denied,
+pending, expired, wrong-company and wrong-action evidence stay unconfirmed. A
+prior confirmation remains unchanged. Reapplying the receipt adds no updates.
+The transaction probe exists only in that disposable test database. Restoring
+the old unbounded UPDATE makes the test fail: one transaction instead of at least
+two. Snapshot/schema drift acceptance also passes.
+
+### Final local evidence
+
+266 distinct cases pass on this combined source:
+
+- 122 complete voice-session integration cases, using an initially empty test DB.
+- 142 cases across nine complete inbound cleanup, voice recovery, company removal,
+  shared deadline/coordinator/batching, startup and hostname suites. Cleanup and
+  parent recovery use separate initially empty DBs. Inbound cleanup uses its
+  dedicated DB after the fresh-setup repair; all 14 lifecycle cases pass.
+- Two complete database migration and schema-snapshot cases.
+
+Database and server typechecking and builds pass. Migration numbering/safety
+checks pass. The complete voice suite retains both interrupted-approval retry
+regressions. Removing only the existing-session binding makes those real API
+requests reject instead of resolve; the source was restored after the probe.
+The bounded-backfill and restart probes were also restored before final acceptance.
+
+Commands use `pnpm --filter @paperclipai/server exec vitest run` for the ten named
+server suites, `pnpm --filter @paperclipai/db exec vitest run` for the two database
+cases, and each affected package's `typecheck` and `build` scripts. Evidence logs:
+`/tmp/sleep23-final-voice-consumers.log`,
+`/tmp/sleep23-final-lifecycle-consumers.log`,
+`/tmp/sleep23-current-migration-acceptance.log`, and
+`/tmp/sleep23-current-migration-lineage-proof.json`. The three guarded negative
+probes have `/tmp/sleep23-*-mutant-red.log` logs. Earlier failed fixture setup,
+unbounded inventory, and migration failures remain recorded above and in
+`/tmp/sleep23-empty-fixture-red.log` and `/tmp/sleep23-page-budget-red.log`.
+
+The older 130/132/205-case and full-workspace claims apply only to their stated
+revisions. No new full local repository suite, live provider, Cloud alarm,
+instance/database suspension, or savings claim is made. Latest-head review,
+all CI, and parent landing remain required. Company deletion still refuses to
+erase unconfirmed cleanup; an audited tombstone or override requires a separate
+product and ownership decision.
+
+
+The module-boundary check passes. The full local Node policy scan reports two
+ignored, generated Copilot distribution manifests without an engine field after
+the successful package builds. Neither file is tracked or changed by this PR.
+The unchanged checker passes on a temporary copy of all its tracked source inputs
+(all manifests, Dockerfiles, workflows and required policy fragments). The initial
+full-tree failure remains `/tmp/sleep23-final-policy.log`; the source-input check
+and its complete input list are `/tmp/sleep23-final-tracked-policy.log` and
+`/tmp/sleep23-tracked-policy-proof.json`. No checker, workflow, generated vendor
+manifest, or ignore rule was changed to obtain this result. Remote CI remains a
+separate gate.
+
+### Legacy terminal admissions missing their session binding — October 28
+
+Ponytail found that an old interrupted approval could leave an admission `ended` or `expired` with a NULL session binding even though a matching provider session exists. The approval-only repair rejected that state forever, leaving cleanup unconfirmed and the company-deletion guard armed. Five new regressions reproduced the ownership conflict on the reviewed source before the repair.
+
+Cleanup now handles confirmed terminal sessions before approval repair. It copies the existing termination timestamp without granting approval or issuing another provider request. Rejected admissions with a matching active inbound session retain their rejection, persist the missing binding and hand the leg to live recovery. Persisting the binding also lets the subsequent session-scoped confirmation wake find the admission. A conflicting existing binding, mode, idempotency key, generation, credential fingerprint or tool-token digest cannot authorize that handoff. Five negative regressions retain cleanup debt and leave the unrelated session active.
+
+The complete cleanup lifecycle suite passes 24 cases, including quiet after settlement, current ownership, rejected-state preservation, matching terminal confirmation and conflicting identities. The complete voice-store integration suite passes 122 cases on a separate initially empty PostgreSQL 17 database. These are 146 distinct current cases; the isolated transcript probe is not counted again. Production server typecheck and build pass. No local full-repository, real provider, Cloud wake or host-suspension claim is made.
+
+Failure history: the first regression invocation set the generic database variable rather than this suite's explicit variable and skipped all cases; it is not a pass. The corrected invocation executed and failed all five intended ownership regressions. The first repaired full cleanup run passed 22 and failed two new test calls to low-level chat deletion because retained voice sessions still have endpoint foreign keys. The tests now exercise the owning cleanup deletion guard (409 before cleanup, settled after confirmation); production deletion ordering is unchanged. Starting another disposable PostgreSQL server failed because the host's semaphore capacity was exhausted. The already-owned PostgreSQL server was verified available and reused with new isolated test databases; no shared IPC resources were removed.
+
+The first complete voice-store run passed 121 cases and timed out at the unchanged 15-second limit in `retains both spoken sides once on the public call task and preserves quarantine`. Its isolated fresh-database probe passed. One subsequent complete run, with builds finished, passed all 122 cases without source or timeout changes. Recorded transform time was 59.09 seconds for the failed full invocation and 34.65 seconds for the passing full invocation; this does not establish the timeout's underlying cause. The earlier timeout remains part of the verification record.
+
+### Landed-parent integration and regenerated migration — October 28
+
+Reply delivery #17578 landed at `e93732c3d49f513845543a6c5d61054950969923`. This normal merge uses actual master `e7ea2e2961863171956e70fb05d3d1f3790f7909`, including the unrelated eval ingestion change. The cleanup owner, voice-store consumer suite and inbound admission schema are byte-identical to tested repair `7e4588fa8c`; the cleanup fixture changes only its migration filename. All unrelated master changes remain present.
+
+Master acquired `0395_tranquil_firestar.sql` while this stack was open. Its SQL, every other landed SQL file and the parent journal prefix are preserved. Running `pnpm db:generate` produced `0396_tan_paladin.sql` and its new snapshot. The previously reviewed idempotent cleanup SQL, concurrent index and bounded historical backfill are retained byte for byte under that generated filename; application registration and both migration fixtures now reference 0396. Exactly snapshots 0392 through 0396 remain, with 0391 pruned by the existing command.
+
+On the combined source, database build and numbering/safety checks pass. The complete 24-case cleanup lifecycle suite passes on a new empty database. The separate database migration integration case passes, including fresh application boot, interrupted concurrent-index repair, serialized replay and the real transaction-bounded backfill. Production server typecheck and build pass again after integration. The prior 122-case voice-store pass is carried only for its unchanged consumer and cleanup source; it was not rerun merely for the new migration filename. These checks do not establish deployed sleep or provider behavior. Fresh published-head CI and reviews remain separate merge gates.
+
+### CI connected-tool rate-limit clock repair — October 28
+
+Published head `48d8356e73` received exact-head Greptile 5/5. Its replacement CI run 40692550133 failed server shard 9/12 (job 122830940435): 1,610 cases passed, two skipped, and the connected MCP policy/approval/rate-limit acceptance case failed with `Expected connected MCP call to be rate limited`. This is a separate real failed check, not the cancelled duplicate workflow run 40692549975 created during retargeting.
+
+The policy owner uses fixed 60-second buckets. The existing acceptance test performed its first and second calls against the real clock, so a legitimate window change could make the second call allowed. A controlled minute rollover between those calls reproduced the exact failing assertion on unchanged production code; the diagnostic source was restored. The CI log does not directly record the two bucket timestamps, so this reproduction establishes the test's unsafe timing assumption without claiming an independently captured clock trace for the CI attempt.
+
+The existing acceptance case now freezes only `Date` around the rate-limit assertions, preserves the second-call 429 and persisted invocation assertions, then advances one window and requires a new call to succeed. A `finally` restores the real clock; network and timeout timers remain real. The complete 92-case gateway acceptance suite passes on a dedicated database. A subsequent whitespace-only correction removed an introduced blank-line indentation and changes no tokens. No production limiter, policy, credential, timeout, workflow or assertion was weakened. This additional existing test fixture is the only new source path outside the cleanup slice and fixes the observed CI gate. Fresh CI and exact-head review are required again after publication.

@@ -86,7 +86,7 @@ describe("import spool cleanup", () => {
     expect(await companyTransferRunService.claimApply(db, applying.id)).toBe(true);
     await start(); expect(coordinator!.nextWakeAt()).toBeNull(); await quiet();
     expect(await exists(failed.id)).toBe(true); expect(await exists(applying.id)).toBe(true);
-    // Terminal state changes reactivate their own file cleanup.
+
     await companyTransferRunService.complete(db, applying.id); await settle();
     expect(await exists(applying.id)).toBe(false); expect(await exists(failed.id)).toBe(true); await quiet();
   });
@@ -146,7 +146,7 @@ describe("import spool cleanup", () => {
   it("retains the first filesystem and ledger changes during drain without SQL", async () => {
     await start(); await quiet(); admitted = false;
     const run = await transfer(); await spool(run.id); await companyTransferRunService.cancel(db, run.id);
-    // No admitted discovery occurs while draining, including for new files.
+
     await quiet(); expect(await exists(run.id)).toBe(true);
     admitted = true; worker!.wake(); await settle();
     expect(await exists(run.id)).toBe(false); await quiet();
