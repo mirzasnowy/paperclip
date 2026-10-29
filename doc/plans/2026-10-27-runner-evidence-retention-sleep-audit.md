@@ -201,3 +201,37 @@ Actual skill-retention squash adoption remains a publication prerequisite. If
 its tree carries only these already accepted upstream changes, tree identity
 will prove that adoption changes no accepted runtime. Any additional behavior
 will receive scoped combined-context validation before publication.
+
+## Runner-authority upstream qualification
+
+Master `27be8590442fc02d29a6c257a4e9dbe5bbbd66d2` then introduced Runner
+authority for runtime activity and updated provider manifests. Normal composition
+through `b80eee32f344ae0218d8b791c14f2ea174da09cc` preserves its complete
+package tree byte for byte, the accepted workspace changes and the parent browser
+readiness repair. The server retention implementation is unchanged.
+
+On that combined source, **652 TypeScript cases across 22 complete files passed**.
+These include the complete 14-file evidence-retention/workspace selection (321
+cases) and eight affected Runner files (331 cases). One actual closed Pi snapshot
+launch is intentionally skipped because its external distribution root is not
+provided; this is not a live-distribution qualification. **29 Rust cases passed**
+in the full native-backend target (26), full runtime-notification target (one),
+and both configured-environment unit cases. Adapter/Runner/database builds, Runner
+and server typechecking, Rust formatting/workspace checking, server build, module
+boundaries, migration order and generated TypeScript/Rust profiles all passed.
+Fresh PostgreSQL 17 schemas apply all 413 entries through index 414. All selected
+source hashes and temporary imports restore exactly. These fresh counts replace
+rather than add to the prior selections.
+
+The new upstream manifest uses Copilot profile 81, but its separate source-identity
+check still fails: the active fixture's `configuredEnvironmentRustSourceSha256`
+differs from the actual merged Rust file. Every bound source and the entire
+package tree equal master. This preserves the earlier inherited OpenCode-key
+identity drift through the upstream profile update; no retention edit causes it.
+Grok's separate identity check passes. The Copilot exception remains explicit,
+and no release attestation is regenerated or new live-provider qualification
+claimed. Required fresh exact-head CI/security and reviews remain merge gates.
+
+Actual parent squash adoption remains necessary before final publication. The
+new parent browser-repair commit and its original assertions are carried exactly;
+the browser gate itself must still be green on the final published head.
