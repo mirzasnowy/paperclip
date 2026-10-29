@@ -131,3 +131,125 @@ All 14 new continuation cases pass after this correction
 startup guards pass separately, 27 cases total
 (`/tmp/sleep33-publication-startup.log`). Fresh broad acceptance and remote gates
 on the corrected head remain required. No failed run has been relabelled passing.
+
+
+## Current prepared integration — October 28
+
+The existing 12-path slice is normally merged onto prepared confirmation parent
+`9e9fff2be989d8447eb34a7fcba78076a26bdd27` at
+`22530681c6a4a3d11ea14356d751cecf45035ba8`. The complete original edits and context
+are identical after excluding only blob index hashes/hunk offsets. The proof is
+`/tmp/sleep33-current-parent-composition-proof.json`. No new implementation is
+added during this preparation; its predecessors carry current master and the
+notice discovery/restoration repairs.
+
+**57 distinct cases pass:** all 14 selected real continuation lifecycle,
+concurrent-response, outer-commit and stop-before-publication cases (1,687 other
+chat cases skipped), plus 43 across the complete interaction-publication and
+app/startup suites. These run after server typechecking/build and module boundary
+checks, which also pass. Two isolated PostgreSQL fixtures keep the chat lifecycle
+and publication consumers independent; the publication owner applies its own
+migrations. Commands, fixtures and tested revision are in
+`/tmp/sleep33-current-acceptance-command.json`; logs/exit receipts are
+`/tmp/sleep33-current-{types,build,boundaries,continuations,consumers}.*`.
+
+The older 14-case publication count and broad acceptance above retain their
+original revisions. The current complete publication/startup group has 43 cases;
+none are skipped. This preparation is local and unpublished, with both preceding
+PRs still required to land before final integration and fresh exact-head checks.
+No full local repository, live-provider or physical sleep claim is made.
+
+
+### Local acceptance on the indexed terminal-confirmation parent
+
+Normal merge `71ec3c00d15cd8081514f0d2eb99d5a1728425b1` adopts published terminal
+confirmation parent `a35e78d076c1b618bc643391b7520fa6952fc996`, including its
+concurrent partial index, company/id keyset discovery and current master
+`644937c93150c423f12674992c7ea1e8b5dbc98c`. Both complete sets of added/removed
+patch edits are preserved, excluding only blob hashes and hunk line metadata.
+The two shared files (chat integration tests and confirmation actions) merge
+normally; every unrelated parent blob is retained. Proof:
+`/tmp/sleep33-indexed-parent-composition-proof.json`.
+
+**74 distinct cases pass on this combined source:** 31 selected chat cases
+(14 continuation lifecycle/stop/retry/outer-commit cases plus 17 parent
+confirmation lifecycle/query-cost cases; 1,671 skipped), and all 43 cases across
+complete interaction-publication and app/startup suites. Server typechecking,
+build and module boundaries pass. Fresh isolated PostgreSQL databases use the
+parent's complete migration history through 0398. Its five newest snapshots
+remain 0394–0398, with no schema changes from this slice.
+
+Commands, actual fixtures and tested revision:
+`/tmp/sleep33-indexed-parent-acceptance-command.json`. Logs/exit receipts:
+`/tmp/sleep33-indexed-parent-{types,build,boundaries,migrate,lifecycle,consumers}.*`.
+The previous 57-case matrix retains its original revision scope; repeated cases
+are not added to the current total. The following audit-only commit leaves all
+owned product/test sources unchanged.
+
+This is local preparation. Terminal confirmations #17651 must actually merge
+before this slice is reconciled with its landed squash parent and published.
+The existing remote head's review is not a review of this integration. Fresh
+exact-head CI and Greptile 5/5 without actionable findings remain required.
+No full local repository suite, live provider or physical suspension result is
+inferred from this acceptance.
+
+
+### Acceptance on the actual landed terminal-confirmation parent
+
+Terminal confirmations #17651 landed at
+`ee67d2ece9bda157dfad9bdf25175b1d004ed341`. Normal integration
+`db5a84c0f8b73a0ce863f4d2fbaee0a115cf044f` preserves the complete original
+12-path continuation patch and all 12 unrelated master paths, including managed
+Cloud sandbox selection changes. Historical squash-ancestry conflicts are
+resolved against the verified semantic parent `a35e78d076c1b618bc643391b7520fa6952fc996`;
+both normal merge parents and the exact composition tree are checked. Proof:
+`/tmp/sleep33-landed-parent-publication-proof.json`. All 74 original selected
+cases pass again on that actual-parent integration, with fresh PostgreSQL,
+database build, server typechecking/build and module boundaries.
+
+Before publication, inspection found the same retained-history scan that the
+parent's review exposed in confirmation recovery. This owner also filtered
+`chat_actions` without a matching work index. The new actual-SQL regression
+fails at **20,345 examined rows and 20,421 shared buffers** for one pending claim,
+with 20,000 completed/unrelated actions present. This red result is retained in
+`/tmp/sleep33-cost-red.log` and its nonzero exit receipt.
+
+Repair `a4a207ff23116c3fb739ad614c4c254992b1cdac` adds the generated
+`0399_ambitious_onslaught.sql` partial index on `(company_id, id)` for
+`interaction_wakeup` actions in `issued`/`processing` state. It is concurrent
+and idempotent, using the existing top-level migration runner. Keyset ordering
+and its composite cursor match that index; fixed predicates remain SQL literals
+for prepared-plan eligibility. This changes neither claim/retry deadlines nor
+continuation/publication authority. It adds no table, timer or scheduler.
+This is a deliberate additional repair after the original 12-path preservation
+proof, not a claim that the final patch is unchanged from the old implementation.
+
+The regression captures the owner's real startup and company-scoped SQL, replays
+it unchanged under `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`, and requires the
+correct pending ID with at most two action rows examined and fewer than 20 action
+buffers. Empty scoped recovery must also touch fewer than 20 buffers. No planner
+setting forces the index. A future processing claim prevents the test from
+consuming the pending row; the coordinator is stopped before checking empty
+recovery. The test vacuums/analyzes its owned table so dead tuples from previous
+cases do not masquerade as retained-history cost. The narrow green result is
+`/tmp/sleep33-cost-green.log`.
+
+**75 distinct final cases pass:** 32 chat cases (14 continuation lifecycle,
+concurrency, malformed backlog, outer commit and stop cases; the new cost case;
+and 17 parent confirmation/query-cost cases), with 1,671 skipped; plus all 43
+cases across complete publication and startup suites. Database build, server
+typecheck/build, module boundaries and fresh migration through 0399 pass. The
+398-to-399 upgrade and target-branch migration-order gate also pass. All prior
+SQL/journal entries and retained snapshot bytes are preserved. Generation prunes
+0394 and retains the five newest snapshots, 0395–0399.
+
+Actual commands and fixtures:
+`/tmp/sleep33-cost-final-acceptance-command.json`. Logs/receipts:
+`/tmp/sleep33-cost-final-{db-build,types,build,boundaries,migrate,lifecycle,consumers}.*`,
+`/tmp/sleep33-cost-upgrade.*`, and `/tmp/sleep33-cost-migration-order.*`.
+Earlier 57/74-case runs retain their revision scopes; repeated cases are not
+added to 75. Original missing-signal, skipped-publication and stop-before-send
+failures above remain recorded. The audit-only follow-up leaves the final owned
+source/test/migration hashes unchanged. Fresh exact-head CI and Greptile 5/5
+with no actionable findings remain required before merge. These tests establish
+owner recovery/quiet and bounded reads, not deployed physical suspension.

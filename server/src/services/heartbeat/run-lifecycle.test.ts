@@ -274,7 +274,7 @@ describe.skipIf(!support.supported)("heartbeat lifecycle database wiring", () =>
       expect(hints).toEqual([{ companyId: run.companyId, runId: run.id }]);
       expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0].finishedAt).not.toBeNull();
       hints.length = 0;
-      // A terminal metadata repair can make existing cleanup eligible too.
+
       await createHeartbeatLifecycle(db, callbacks(db)).setRunStatus(run.id, "succeeded", { error: "repaired metadata" });
       expect(hints).toEqual([{ companyId: run.companyId, runId: run.id }]);
     } finally { unsubscribe(); }

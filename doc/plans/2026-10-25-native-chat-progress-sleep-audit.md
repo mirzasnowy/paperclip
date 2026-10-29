@@ -194,3 +194,32 @@ server typecheck passes in `/tmp/sleep29-atomic-progress-typecheck.log`.
 Greptile reviewed `3447973f6f` at 5/5 with no threads. A new full CI/review pass
 is required for this second repair; do not carry forward readiness from its
 parent head.
+
+
+## Current milestone-parent acceptance (October 28)
+
+The existing native-progress slice is prepared with a normal merge of the verified
+local milestone parent `eef52b9dd759417bd7a2fea835357fbfeb460111`. Its previous
+published head is `08d07ead105dc89c2af9b62f4d90bff8cc93540c`, with original own
+base `7991c2fa2ce7298bee69b25dbc6cb60a5e2fe250`. All unrelated parent changes,
+including the current migration 0397 and authority, voice, and identity repairs,
+remain present. The only explicit-base conflict was publication resolution: keep
+this slice's issue-scoped retry notification and the parent's exact voice
+conversation scope. No new duty, table, dependency, or scheduler is introduced.
+
+Fresh separate PostgreSQL fixtures pass **163 distinct selected cases**:
+**137 across eight complete suites** (native progress, atomic event append,
+all five milestone worker suites, and app admission wiring), plus **26 real chat
+integration cases** selected by `native progress`. These include replay/operator
+retry, microsecond pagination, lock contention, current authority, cadence, phase
+coalescing, final/question precedence, and redaction. The other **1,595 chat cases
+were skipped**, not passed. Server production typechecking, build, and module
+boundaries also pass; test files were executed rather than statically checked.
+
+Commands, separate fixture names, output, and zero exit-status receipts are in
+`/tmp/sleep29-current-parent-acceptance-command.json` and
+`/tmp/sleep29-current-parent-{acceptance,producers,types,build,boundaries}.log`.
+Earlier verification and failures above keep their stated revision scope. This
+is local preparation only: final landed-parent reconciliation, all fresh exact-
+head remote gates, and Greptile 5/5 remain required before merge. This does not
+qualify a live provider, external alarm, whole-instance suspension, or savings.

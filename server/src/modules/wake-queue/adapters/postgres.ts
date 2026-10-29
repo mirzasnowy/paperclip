@@ -957,7 +957,7 @@ export function createWakeAdmissionWriter(): WakeAdmissionWriter {
     async coalesceIntoActiveExecutionRun(scope, input) {
       const tx = requireAdmissionTx(scope, input.companyId);
       const now = new Date();
-      await notifyChatRunMilestones(tx, { companyId: input.companyId });
+      await notifyChatRunMilestones(tx, { companyId: input.companyId, runId: input.activeExecutionRunId });
       const mergedRun = await tx
         .update(heartbeatRuns)
         .set({ contextSnapshot: input.mergedContextSnapshot, updatedAt: now })

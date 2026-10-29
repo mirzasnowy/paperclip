@@ -8,7 +8,6 @@ import { notifyChatCompanyConfiguration } from "./chat-channels/configuration-wo
 import { chatCompanyDeletion } from "./chat-channels/company-deletion.js";
 import { notifyToolConnectionHealth } from "./tool-connection-health-notifications.js";
 import { notifyCompanyRetentionWork } from "./retention-work-notifications.js";
-import { notifyDecisionTargetWork } from "./decision-target-work.js";
 import { notifyToolReviewChange } from "./tool-review-work-notifications.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { agentObservabilityService } from "./agent-observability.js";
@@ -113,6 +112,9 @@ export async function deleteCompany(db: Db, id: string) {
         await tx.delete(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, id));
         await tx.delete(agentApiKeys).where(eq(agentApiKeys.companyId, id));
         await tx.delete(agentRuntimeState).where(eq(agentRuntimeState.companyId, id));
+        // Match receipt completion and comment deletion: task before comment.
+        await tx.select({ id: issues.id }).from(issues)
+          .where(eq(issues.companyId, id)).orderBy(issues.id).for("no key update");
         await tx.delete(issueComments).where(eq(issueComments.companyId, id));
         await tx.delete(approvalComments).where(eq(approvalComments.companyId, id));
         await notifyCompanyRetentionWork(tx, id);
@@ -129,7 +131,6 @@ export async function deleteCompany(db: Db, id: string) {
         await tx.delete(routines).where(eq(routines.companyId, id));
         await tx.delete(issueReadStates).where(eq(issueReadStates.companyId, id));
         await tx.delete(documents).where(eq(documents.companyId, id));
-        await notifyDecisionTargetWork(tx);
         await tx.delete(issues).where(eq(issues.companyId, id));
         await tx.delete(companyLogos).where(eq(companyLogos.companyId, id));
         await tx.delete(assets).where(eq(assets.companyId, id));

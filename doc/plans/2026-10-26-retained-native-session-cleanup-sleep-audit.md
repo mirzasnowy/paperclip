@@ -546,3 +546,75 @@ former v62 evidence. Installation tests retain both histories and prove historic
 profiles remain decodable but cannot launch as the current pinned profile.
 The profile generator's check, TypeScript/Rust agreement, and runner typecheck
 pass. This remains source identity verification, not live provider qualification.
+
+## Merge acceptance on current master (2026-10-29)
+
+This section supersedes earlier provisional enablement and readiness notes. The
+reviewed parent #17709 is merged. Its exact reviewed tree is unchanged in the
+landed squash. A normal merge adopts that ancestry without altering this child’s
+complete tree. This slice is now prepared directly for master.
+
+Routine company-only finalization hints do not reconstruct retained cleanup.
+Ordinary fanout requires an issue or run identity; pending-effects serialization
+retains its existing company/run contract. Cleanup producers allocate their run
+identity before registering transaction intent and before writing work. The
+local release path can still wake a dormant candidate. A controlled regression
+removed only the scope guard and failed; restoring that guard passed the same
+assertions. The complete 29-case worker file also passes, including durable
+reconstruction, commit/rollback, drain/resume, changes during execution, physical
+owner settlement and quiet retained history.
+
+Current parent integration preserved 12,693 independent parent entries, 14
+owned-only entries and 15 automatic shared entries. Ten manually reviewed paths
+retain both runtime histories and both sets of installation assertions. All 92
+parent historical fixtures remain byte-exact. The sleep branch’s different
+profile 66 is preserved under a separate historical filename, alongside its
+prior 62 and 64 variants. Forty added code comments were removed with identical
+nontrivia TypeScript token streams before generating source identities.
+
+Local server acceptance covers **2,342 distinct passing cases in 18 complete
+files**. This includes 977 native executor cases, 146 arbiter corpus cases, 410
+process-recovery cases, 273 external-chat response cases, 76 startup cases and
+29 cleanup worker cases. Production server typechecking, build, module boundaries,
+migration order and profile generator checks pass on the stated source. Existing
+SQL and the database package tree are unchanged from parent migration 413.
+Disposable PostgreSQL 17 fixtures were prepared independently. Temporary imports
+use the existing fresh-per-call recovery fixture helper for embedded-only paths;
+every import was restored byte-for-byte. No test assertion or timeout was relaxed.
+
+The first 15-file invocation reported 1,607 passes and one startup shutdown failure,
+plus its associated unhandled rejection. The shared coordinator test double lacked
+the real worker’s `stop()` method, which task-drain shutdown now calls. Only that
+test double changed. All 76 unchanged startup cases then passed in 6.17 seconds.
+The other 14 complete files account for 1,532 passes. The remaining three complete
+files passed separately: process recovery 410, environment service 51 and external
+chat response 273. The failed log remains part of the acceptance record; the first
+whole invocation is not reported as a successful command.
+
+Master then advanced independently with Claude ACP reconnect replay and a lockfile
+refresh. Its server, UI and database trees are unchanged. Its published Copilot
+profile 79 differs from this branch’s prepared 79. The merge preserves master’s
+canonical fixture and saves the sleep variant as
+`copilot-profile-v79-sleep-maintenance-historical-identity.json`. Combined profile
+80 binds current compatibility decoding and retained-maintenance completion;
+other providers retain master’s declarations. Historical identities remain
+readable and fail current launch admission. This is source identity verification,
+not live Copilot qualification.
+
+Current integration validation and exact review/CI results are recorded in the
+PR. Local evidence proves named worker behavior. It does not establish full
+repository acceptance, Cloud alarm coverage, deployed host/database suspension
+or measured cost savings. Concrete live-PID absence probes and durable lease
+expiries remain real obligations; this change does not discard them to claim quiet.
+
+The current profile 80 runtime selection passes 130 cases across four files in
+125.90 seconds. One existing opt-in closed Pi snapshot case is skipped because
+`PAPERCLIP_TEST_PI_DISTRIBUTION_ROOT` is not set. This skip is not counted as
+acceptance of a live Pi installation. The Copilot installation/history and
+transport-settlement files have no skipped cases.
+
+Current integration at `d08f764e3efe75e96929173afe7ee8739121ad9f` passes
+all 12 validation commands: frozen install, three source/profile checks, Runner
+and server typechecking, server build, the four-file runtime selection, installed
+ACPX/Grok contract tests (22 passes), native-provider Rust tests (26 passes),
+module boundaries and migration order. The live-provider limits above remain.

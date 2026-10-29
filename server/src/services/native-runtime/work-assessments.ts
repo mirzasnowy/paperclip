@@ -146,7 +146,7 @@ export async function recordNativeAttentionAssessment(input: {
 }
 
 
-/** Revalidate a scheduled reassessment inside the task/run status transaction. */
+
 export async function lockCurrentNativeWorkAssessmentEvidence(db: Db, input: {
   companyId: string;
   issueId: string;

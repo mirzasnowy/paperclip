@@ -1,4 +1,3 @@
-import { notifyToolReviewChange } from "./tool-review-work-notifications.js";
 import { and, eq } from "drizzle-orm";
 import { approvals, issueApprovals, type Db } from "@paperclipai/db";
 import { notifyNativeReviewState } from "./native-review-state-notifications.js";
@@ -11,13 +10,11 @@ type ApprovalChangeScope = { approvalId?: string; issueIds?: string[] };
 export async function notifyApprovalWork(transaction: object, companyId: string, scope?: ApprovalChangeScope) {
   await notifyDeliveryWork(transaction, DELIVERY_QUEUES.approvalRetention);
   await notifyApprovalQueueWork(transaction, companyId);
-  // Formal decisions release parked tool reviews on the same outer commit.
-  await notifyToolReviewChange(transaction, companyId);
   const issueIds = new Set(scope?.issueIds);
   if (scope?.approvalId) {
-    // Link inserts hold a foreign-key KEY SHARE lock on this approval. Taking
-    // UPDATE before discovering links makes either this transaction see the
-    // committed link, or the link's own wake see the committed decision.
+
+
+
     await (transaction as Db).select({ id: approvals.id }).from(approvals)
       .where(and(eq(approvals.companyId, companyId), eq(approvals.id, scope.approvalId))).for("update");
     const links = await (transaction as Db).select({ issueId: issueApprovals.issueId }).from(issueApprovals)

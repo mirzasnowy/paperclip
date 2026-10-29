@@ -405,8 +405,8 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const external = resolveExternalTestDatabaseUrl("PAPERCLIP_STATUS_CORPUS_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-status-corpus-");
     db = createDb(external ?? temporary!.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Status corpus", issuePrefix: "PSC" });
-    await db.insert(companies).values({ id: outsideCompanyId, name: "Outside corpus", issuePrefix: "OUT" });
+    await db.insert(companies).values({ id: companyId, name: "Status corpus", issuePrefix: `PSC${companyId.replaceAll("-", "").toUpperCase()}` });
+    await db.insert(companies).values({ id: outsideCompanyId, name: "Outside corpus", issuePrefix: `OUT${outsideCompanyId.replaceAll("-", "").toUpperCase()}` });
     await db.insert(agents).values([
       {
         id: agentId,
@@ -3102,8 +3102,8 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
           .where(eq(heartbeatRuns.id, seeded.runId));
         if (row?.phase === "committed" && row.status === "running") {
           consumedBeforeProjection = true;
-          // Delay the caller after the real decision commit. The first wake is
-          // reconciled while the run is still ineligible, before the later write.
+
+
           await flush();
           expect(cleanup).not.toHaveBeenCalled();
         }

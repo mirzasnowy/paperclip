@@ -7,8 +7,8 @@ export function notifyNativeWorkspaceFinalization(tx: object, scope?: NativeWork
     scope ? JSON.stringify({ companyId: scope.companyId, runId: scope.runId, issueId: scope.issueId }) : "*");
 }
 
-// Joining a local physical writer remains evidence even if clearing its durable
-// receipt fails. Re-read that exact run on release; never infer another owner stopped.
+
+
 const listeners = new WeakMap<object, Set<(scope: NativeWorkspaceFinalizationScope) => void>>();
 export function onNativeWorkspaceFinalizationRelease(db: object, listener: (scope: NativeWorkspaceFinalizationScope) => void) {
   let owned = listeners.get(db);

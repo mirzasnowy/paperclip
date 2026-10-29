@@ -1,3 +1,4 @@
+import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
 import { nativeResponsePresentationWork } from "../services/native-runtime/native-response-presentation-work.js";
 import { notifyChatRunMilestones } from "../services/chat-run-milestone-notifications.js";
 import { registerGitHubReviewProjectionWork } from "../services/chat-channels/github/review-projection-work.js";
@@ -14,6 +15,7 @@ import { cloudActorHeaderSourceFromHeaders, resolveCloudTenantActor } from "../m
 import { cloudTenantPrimaryCompanyId } from "../services/cloud-instance.js";
 import { accessService } from "../services/access.js";
 import { signalDatabaseWork, subscribeDatabaseWork } from "@paperclipai/db";
+import { claimTaskRetryInput, releaseUnadmittedTaskRetryInput } from "../services/chat-channels/task-retry-input.js";
 import { restoreNativeChatReviewPresentationInTransaction } from "../services/native-runtime/native-chat-review-presentation.js";
 import { notifyChatEndpointConfiguration, notifyChatCompanyConfiguration } from "../services/chat-channels/configuration-work-notifications.js";
 import { configureAgentLifecycle, createAgentLifecycle, processAgentLifecycle } from "../services/agent-lifecycle.js";
@@ -150,6 +152,7 @@ import {
   issues,
   nativeRunResults,
   nativeRunFinalizations,
+  statusDecisions,
   statusDecisionEffects,
   environmentLeases,
   environments,
@@ -4116,7 +4119,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError: error => errors.push(error) });
       try {
         await githubResponseCommentService(db, f.providerFetch).registerTerminalResponseWork(coordinator, () => true).ready;
-        await expect.poll(() => ({ next: coordinator.nextWakeAt(), active: idleWorkSnapshot().active }))
+        await expect.poll(() => ({ next: coordinator.nextWakeAt(), active: idleWorkSnapshot().active }), { timeout: 5000 })
           .toEqual({ next: null, active: 0 });
         expect(f.responseWrites).toHaveLength(baseline);
         vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
@@ -16145,6 +16148,40 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
           expect(reads).not.toHaveBeenCalled(); expect(writes).not.toHaveBeenCalled();
         } finally { reads.mockRestore(); writes.mockRestore(); vi.useRealTimers(); }
         expect(f?.requests ?? []).toEqual([]); expect(errors).toEqual([]);
+      } finally { await coordinator.stop(); vi.useRealTimers(); }
+    });
+
+    it.each(["null", "missing", "deleted"] as const)("rejects a %s assigned agent before GitHub recovery can become orphaned", async mode => {
+      const f = await githubPreIngressRecoveryFixture();
+      const [endpoint] = await readChatEndpointsById(f.endpoint.id);
+      await f.makeScanDue();
+
+
+      const mutation = mode === "null"
+        ? db.execute(sql`update ${chatEndpoints} set assigned_agent_id = null where ${chatEndpoints.id} = ${endpoint.id}`)
+        : mode === "missing"
+          ? db.update(chatEndpoints).set({ assignedAgentId: randomUUID() }).where(eq(chatEndpoints.id, endpoint.id))
+          : db.delete(agents).where(eq(agents.id, endpoint.assignedAgentId));
+      const integrityCode = mode === "null" ? "23502"
+        : mode === "deleted" ? expect.stringMatching(/^(23001|23503)$/) : "23503";
+      await expect(mutation).rejects.toMatchObject({ cause: { code: integrityCode } });
+      expect((await readChatEndpointsById(endpoint.id))[0].assignedAgentId).toBe(endpoint.assignedAgentId);
+      expect(await db.select({ id: agents.id }).from(agents).where(eq(agents.id, endpoint.assignedAgentId)))
+        .toEqual([{ id: endpoint.assignedAgentId }]);
+      f.requests.length = 0;
+      const errors: unknown[] = [];
+      const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError: error => errors.push(error) });
+      try {
+        await f.service.registerGitHubWebhookRecoveryWork(coordinator, () => true).ready;
+        await expect.poll(() => ({ active: idleWorkSnapshot().active,
+          scheduled: (coordinator.nextWakeAt() ?? 0) > Date.now() + 30_000 }), { timeout: 5000 })
+          .toEqual({ active: 0, scheduled: true });
+        expect(f.posts).toHaveLength(1);
+        vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+        const reads = vi.spyOn(db, "select");
+        try { await vi.advanceTimersByTimeAsync(15_000); expect(reads).not.toHaveBeenCalled(); }
+        finally { reads.mockRestore(); vi.useRealTimers(); }
+        expect(f.posts).toHaveLength(1); expect(errors).toEqual([]);
       } finally { await coordinator.stop(); vi.useRealTimers(); }
     });
 
@@ -47132,6 +47169,92 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     return { fixture, callbacks, onAction: callbacks.onAction, endpoint, service, wakeup, settlementBarrier, dm, conversation, linkedUserId, principal, interaction, publication, acceptAction, actionEvent };
   }
 
+  it("bounds interaction continuation recovery reads with completed history", async () => {
+    const context = await telegramConfirmationRecoveryFixture();
+    await expect(context.onAction(context.actionEvent))
+      .rejects.toThrow("injected post-interaction confirmation settlement crash");
+    const [action] = await db.select().from(chatActions).where(and(
+      eq(chatActions.companyId, context.fixture.companyId), eq(chatActions.kind, "interaction_wakeup"),
+    ));
+    expect(action).toBeDefined();
+    await db.update(chatActions).set({ status: "processing", updatedAt: new Date() }).where(eq(chatActions.id, action.id));
+    const prefix = `continuation-plan:${randomUUID()}:`;
+    await db.execute(sql`
+      INSERT INTO chat_actions (company_id, endpoint_id, kind, provider_action_id, status)
+      SELECT ${context.fixture.companyId}::uuid, ${context.endpoint.id}::uuid,
+        CASE WHEN n <= 10000 THEN 'interaction_wakeup' ELSE 'unrelated_action' END,
+        ${prefix} || n,
+        CASE WHEN n <= 10000 THEN 'processed' ELSE 'processing' END
+      FROM generate_series(1, 20000) AS n
+    `);
+    await db.execute(sql`VACUUM (ANALYZE) chat_actions`);
+    const statements: { sql: string; params: unknown[] }[] = [];
+    const select = db.select.bind(db);
+    const reads = vi.spyOn(db, "select").mockImplementation((...args) => {
+      const selection = select(...args), from = selection.from.bind(selection);
+      vi.spyOn(selection, "from").mockImplementation(table => {
+        const query = from(table);
+        if (table === chatActions) {
+          const execute = query.execute.bind(query);
+          vi.spyOn(query, "execute").mockImplementation(async () => {
+            const statement = query.toSQL();
+            if (statement.params.includes("interaction_wakeup") || statement.sql.includes("'interaction_wakeup'")) {
+              statements.push(statement);
+            }
+            return execute();
+          });
+        }
+        return query;
+      });
+      return selection;
+    });
+    const errors: unknown[] = [];
+    const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true,
+      canReconcile: () => true, onError: error => errors.push(error) });
+    try {
+      await context.service.registerInteractionContinuationWork(coordinator, () => true).ready;
+      expect(statements.length).toBeGreaterThan(0);
+      const startup = statements[0], beforeHint = statements.length;
+      await db.transaction(async tx => {
+        await signalDatabaseWork(tx, DELIVERY_QUEUES.chatInteractionContinuations,
+          JSON.stringify({ companyId: context.fixture.companyId }));
+      });
+      await vi.waitFor(() => expect(statements.length).toBeGreaterThan(beforeHint), { timeout: 5_000 });
+      const scoped = statements.at(-1)!;
+      expect(scoped.params).toContain(context.fixture.companyId);
+      await coordinator.stop(); reads.mockRestore();
+      for (const statement of [startup, scoped]) {
+        expect(await db.$client.unsafe(statement.sql, statement.params as Parameters<typeof db.$client.unsafe>[1]))
+          .toMatchObject([{ id: action.id }]);
+        const result = await db.$client.unsafe(
+          `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${statement.sql}`,
+          statement.params as Parameters<typeof db.$client.unsafe>[1],
+        );
+        type PlanNode = { Plans?: PlanNode[]; [key: string]: unknown };
+        const nodes = (node: PlanNode): PlanNode[] => [node, ...(node.Plans ?? []).flatMap(nodes)];
+        const actionReads = nodes(result[0]["QUERY PLAN"][0].Plan)
+          .filter(node => node["Relation Name"] === "chat_actions");
+        expect(actionReads).toHaveLength(1);
+        expect(Number(actionReads[0]["Actual Rows"]) + Number(actionReads[0]["Rows Removed by Filter"] ?? 0),
+          JSON.stringify({ params: statement.params, actionReads })).toBeLessThanOrEqual(2);
+        expect(Number(actionReads[0]["Shared Hit Blocks"]) + Number(actionReads[0]["Shared Read Blocks"]))
+          .toBeLessThan(20);
+      }
+      await db.update(chatActions).set({ status: "processed" }).where(eq(chatActions.id, action.id));
+      await db.execute(sql`ANALYZE chat_actions`);
+      expect(await db.$client.unsafe(scoped.sql, scoped.params as Parameters<typeof db.$client.unsafe>[1])).toHaveLength(0);
+      const empty = await db.$client.unsafe(
+        `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${scoped.sql}`, scoped.params as Parameters<typeof db.$client.unsafe>[1],
+      );
+      expect(empty[0]["QUERY PLAN"][0].Plan["Shared Hit Blocks"]
+        + empty[0]["QUERY PLAN"][0].Plan["Shared Read Blocks"]).toBeLessThan(20);
+      expect(errors).toEqual([]);
+    } finally {
+      await coordinator.stop(); reads.mockRestore();
+      await db.delete(chatActions).where(sql`${chatActions.providerActionId} LIKE ${`${prefix}%`}`);
+    }
+  });
+
   it.each(["accept", "reject", "drain", "restart", "deferred", "failure", "paused endpoint", "future publication", "stale claim"] as const)("wakes interaction continuations from a committed response through %s", async mode => {
     const context = await telegramConfirmationRecoveryFixture(mode === "reject" ? "reject" : "accept");
     const errors: unknown[] = [];
@@ -47530,6 +47653,89 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     } finally {
       await coordinator.stop(); vi.useRealTimers();
       await db.delete(chatActions).where(inArray(chatActions.id, [...pendingIds, ...invalidIds]));
+    }
+  });
+
+  it("bounds terminal confirmation recovery reads with completed history", async () => {
+    const waiting = await telegramConfirmationRecoveryFixture();
+    const prefix = `confirmation-plan:${randomUUID()}:`;
+    await db.execute(sql`
+      INSERT INTO chat_actions (company_id, endpoint_id, kind, provider_action_id, status)
+      SELECT ${waiting.fixture.companyId}::uuid, ${waiting.endpoint.id}::uuid,
+        CASE WHEN n <= 10000 THEN 'confirmation_response' ELSE 'unrelated_action' END,
+        ${prefix} || n,
+        CASE WHEN n <= 10000 THEN 'processed' ELSE 'processing' END
+      FROM generate_series(1, 20000) AS n
+    `);
+    await db.update(chatActions).set({ status: "processing", result: null })
+      .where(eq(chatActions.id, waiting.acceptAction.id));
+    await db.execute(sql`VACUUM (ANALYZE) chat_actions`);
+    const statements: { sql: string; params: unknown[] }[] = [];
+    const select = db.select.bind(db);
+    const reads = vi.spyOn(db, "select").mockImplementation((...args) => {
+      const selection = select(...args), from = selection.from.bind(selection);
+      vi.spyOn(selection, "from").mockImplementation(table => {
+        const query = from(table);
+        if (table === chatActions) {
+          const execute = query.execute.bind(query);
+          vi.spyOn(query, "execute").mockImplementation(async () => {
+            const statement = query.toSQL();
+            if (statement.sql.includes("'confirmation_response'") && statement.sql.includes("'processing'")) {
+              statements.push(statement);
+            }
+            return execute();
+          });
+        }
+        return query;
+      });
+      return selection;
+    });
+    const errors: unknown[] = [];
+    const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true,
+      canReconcile: () => true, onError: error => errors.push(error) });
+    try {
+      await waiting.service.registerTerminalConfirmationWork(coordinator, () => true).ready;
+      await vi.waitFor(() => expect(statements.length).toBeGreaterThan(0));
+      const startup = statements[0];
+      const beforeHint = statements.length;
+      await db.transaction(async tx => {
+        await signalDatabaseWork(tx, DELIVERY_QUEUES.chatTerminalConfirmations,
+          JSON.stringify({ companyId: waiting.fixture.companyId }));
+      });
+      await vi.waitFor(() => expect(statements.length).toBeGreaterThan(beforeHint), { timeout: 5_000 });
+      const scoped = statements.at(-1)!;
+      expect(scoped.params).toContain(waiting.fixture.companyId);
+      await coordinator.stop();
+      reads.mockRestore();
+      for (const statement of [startup, scoped]) {
+        expect(await db.$client.unsafe(statement.sql, statement.params as Parameters<typeof db.$client.unsafe>[1]))
+          .toMatchObject([{ id: waiting.acceptAction.id }]);
+        const result = await db.$client.unsafe(
+          `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${statement.sql}`, statement.params as Parameters<typeof db.$client.unsafe>[1],
+        );
+        const plan = result[0]["QUERY PLAN"][0].Plan;
+        type PlanNode = { Plans?: PlanNode[]; [key: string]: unknown };
+        const nodes = (node: PlanNode): PlanNode[] => [node, ...(node.Plans ?? []).flatMap(nodes)];
+        const actionReads = nodes(plan).filter(node => node["Relation Name"] === "chat_actions");
+        expect(actionReads).toHaveLength(1);
+        expect(Number(actionReads[0]["Actual Rows"]) + Number(actionReads[0]["Rows Removed by Filter"] ?? 0),
+          JSON.stringify({ params: statement.params, actionReads }))
+          .toBeLessThanOrEqual(2);
+        expect(Number(actionReads[0]["Shared Hit Blocks"]) + Number(actionReads[0]["Shared Read Blocks"]))
+          .toBeLessThan(20);
+      }
+      await db.update(chatActions).set({ status: "processed" }).where(eq(chatActions.id, waiting.acceptAction.id));
+      await db.execute(sql`ANALYZE chat_actions`);
+      expect(await db.$client.unsafe(scoped.sql, scoped.params as Parameters<typeof db.$client.unsafe>[1])).toHaveLength(0);
+      const empty = await db.$client.unsafe(
+        `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${scoped.sql}`, scoped.params as Parameters<typeof db.$client.unsafe>[1],
+      );
+      expect(empty[0]["QUERY PLAN"][0].Plan["Shared Hit Blocks"]
+        + empty[0]["QUERY PLAN"][0].Plan["Shared Read Blocks"]).toBeLessThan(20);
+      expect(errors).toEqual([]);
+    } finally {
+      await coordinator.stop(); reads.mockRestore();
+      await db.delete(chatActions).where(sql`${chatActions.providerActionId} LIKE ${`${prefix}%`}`);
     }
   });
 
@@ -63688,6 +63894,87 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     );
   });
 
+  it("registers ordinary-notice work through the retry admission transaction", async () => {
+    const context = await deferredFailedRetryNoticeFixture();
+    const events: string[] = [];
+    let eventsBeforeWrite: string[] = [];
+    const unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.chatInboundWakeNotices, (event, scopes) => {
+      if ([...scopes ?? []].some(scope => scope !== "*" && JSON.parse(scope).companyId === context.fixture.companyId)) events.push(event);
+    });
+    context.wakeup.mockImplementationOnce(async (_agentId, options) => {
+      const request = options!.durableChatRequest!;
+      await db.transaction(async tx => {
+        events.length = 0;
+        await request.authorize(tx as unknown as Parameters<typeof request.authorize>[0]);
+        eventsBeforeWrite = [...events];
+        await tx.insert(agentWakeupRequests).values({
+          id: request.id, companyId: context.fixture.companyId, agentId: request.agentId,
+          source: options!.source, triggerDetail: options!.triggerDetail, reason: options!.reason,
+          requestedByActorType: request.requestedByActorType, requestedByActorId: request.requestedByActorId,
+          requestedAt: request.requestedAt, idempotencyKey: request.idempotencyKey,
+          status: "deferred_issue_execution", payload: { ...options!.payload,
+            taskRetryRequestId: context.retry.requestId, _paperclipWakeContext: options!.contextSnapshot },
+        });
+      });
+      return null;
+    });
+    try {
+      await expect(context.admit()).resolves.toMatchObject({ status: "deferred" });
+      expect(eventsBeforeWrite).toContain("intent");
+      expect(eventsBeforeWrite).not.toContain("settled");
+      expect(events).toContain("settled");
+      expect((await readAgentWakeupRequestsById(context.retry.chatActionId!))[0]).toMatchObject({ status: "deferred_issue_execution", runId: null });
+    } finally { unsubscribe(); await context.service.shutdown(); }
+  });
+
+  it("registers ordinary-notice intent before a retry-owned receipt is retired", async () => {
+    const context = await deferredFailedRetryNoticeFixture();
+    let release = () => {};
+    let holding: Promise<unknown> | undefined;
+    let retiring: ReturnType<typeof context.admit> | undefined;
+    let unsubscribe = () => {};
+    const events: string[] = [];
+    const signalledScopes: string[] = [];
+    try {
+      expect(await context.admit()).toMatchObject({ status: "deferred" });
+      await reconcileTaskChatRetryReceipts(db);
+      context.wakeup.mockClear();
+      let locked!: () => void;
+      const acquired = new Promise<void>(resolve => { locked = resolve; });
+      const held = new Promise<void>(resolve => { release = resolve; });
+      context.wakeup.mockImplementationOnce(async () => {
+        holding = db.transaction(async tx => {
+          await tx.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, context.retry.chatActionId!)).for("update");
+          locked();
+          await held;
+        });
+        await acquired;
+        throw Object.assign(new Error("denied at resume"), {
+          details: { code: "chat_failed_run_retry_not_authorized" },
+        });
+      });
+      unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.chatInboundWakeNotices, (event, scopes) => {
+        if ([...scopes ?? []].some(scope => scope !== "*" && JSON.parse(scope).companyId === context.fixture.companyId)) {
+          events.push(event); signalledScopes.push(...scopes ?? []);
+        }
+      });
+      retiring = context.admit();
+      void retiring.catch(() => undefined);
+      await vi.waitFor(() => expect(context.wakeup).toHaveBeenCalledOnce());
+      await vi.waitFor(() => expect(events).toContain("intent"), { timeout: 2000 });
+      expect(signalledScopes.map(scope => JSON.parse(scope))).toContainEqual({ companyId: context.fixture.companyId, issueId: context.issue.id });
+      expect(events).not.toContain("settled");
+      expect((await readAgentWakeupRequestsById(context.retry.chatActionId!))[0]).toMatchObject({ status: "deferred_issue_execution", runId: null });
+      release(); await holding;
+      await expect(retiring).resolves.toMatchObject({ status: "failed" });
+      expect((await readAgentWakeupRequestsById(context.retry.chatActionId!))[0]).toMatchObject({ status: "failed", runId: null });
+      expect(events).toContain("settled");
+    } finally {
+      release(); await holding; await retiring?.catch(() => undefined);
+      unsubscribe(); await context.service.shutdown();
+    }
+  });
+
   async function failedChatRetryFixture(
     provider: "slack" | "telegram" | "github",
     externalActorId?: string,
@@ -67099,6 +67386,58 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     }
   });
 
+  it.each(["task", "company", "startup"] as const)("bounds failed retry notice scope discovery with retained candidates (%s)", async mode => {
+    const context = await failedChatRetryFixture("telegram");
+    const other = await failedChatRetryFixture("telegram");
+    const copiedIds = Array.from({ length: 250 }, () => randomUUID());
+    const stagedIds: string[] = [];
+    try {
+      for (const target of [context, other]) {
+        const staged = await db.transaction(tx => target.service.prepareFailedChatRunRetry(tx, {
+          companyId: target.fixture.companyId, issueId: target.issue.id,
+          agentId: target.fixture.assignedAgentId, failedRunId: target.runId, initiatedByUserId: "owner-user",
+        }));
+        await target.service.processFailedChatRunRetry(staged.actionId);
+        await db.update(agentWakeupRequests).set({ status: "deferred_issue_execution" })
+          .where(eq(agentWakeupRequests.id, staged.actionId));
+        stagedIds.push(staged.actionId);
+      }
+      const [action] = await db.select().from(chatActions).where(eq(chatActions.id, stagedIds[0]));
+      const [receipt] = await readAgentWakeupRequestsById(stagedIds[0]);
+      await db.insert(chatActions).values(copiedIds.map(id => ({
+        ...action, id, providerActionId: `failed_run_retry:${id}`,
+      })));
+      await db.insert(agentWakeupRequests).values(copiedIds.map(id => ({
+        ...receipt, id, idempotencyKey: `retry-discovery-budget:${id}`,
+      })));
+      const scope = { companyId: context.fixture.companyId, issueId: context.issue.id };
+      const events: Array<Record<string, unknown>> = [], now = Date.now();
+      const capture = createDatabaseResponseCapture({ start: now - 1, end: now + 59_000 }, event => events.push(event));
+      installDatabaseResponseCapture(db, { chatActions, agentWakeupRequests }, capture);
+      let scopes: Array<{ companyId: string; issueId: string }>;
+      try {
+        scopes = await context.service.loadFailedRetryNoticeScopes(
+          mode === "task" ? scope : mode === "company" ? { companyId: scope.companyId } : undefined,
+        );
+      } finally { capture.flush(); }
+      if (mode === "startup") {
+        expect(scopes).toEqual(expect.arrayContaining([scope, {
+          companyId: other.fixture.companyId, issueId: other.issue.id,
+        }]));
+      } else {
+        expect(scopes).toEqual([scope]);
+      }
+      expect(events.at(-1)).toMatchObject({ startedQueries: mode === "task" ? 0 : 1,
+        completedQueries: mode === "task" ? 0 : 1, inFlightAtEnd: 0 });
+      expect(events.filter(event => event.event === "paperclip.db_response_capture.entry.v1")
+        .reduce((count, event) => count + Number(event.rows), 0)).toBe(mode === "task" ? 0 : scopes.length);
+    } finally {
+      await context.service.shutdown(); await other.service.shutdown();
+      await db.delete(chatActions).where(inArray(chatActions.id, copiedIds));
+      await db.delete(agentWakeupRequests).where(inArray(agentWakeupRequests.id, copiedIds));
+    }
+  });
+
   it("scopes failed retry notices and retains receipt contention without retrying settled history", async () => {
     const context = await failedChatRetryFixture("telegram");
     const other = await failedChatRetryFixture("telegram");
@@ -67132,7 +67471,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       release(); await holder;
       expect(await context.service.reconcileFailedRetryNotices({ scope }))
         .toEqual({ inserted: 1, contended: false, nextCursor: null });
-      expect(await context.service.loadFailedRetryNoticeScopes(scope)).toEqual([]);
+      expect(await context.service.loadFailedRetryNoticeScopes({ companyId: scope.companyId })).toEqual([]);
       expect(await readChatPublicationsByEndpointId(other.endpoint.id)).toEqual([]);
       await db.update(agentWakeupRequests).set({ status: "cancelled" })
         .where(eq(agentWakeupRequests.id, staged[0].actionId));
@@ -67143,7 +67482,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       })]));
       expect(await context.service.reconcileFailedRetryNotices({ scope }))
         .toEqual({ inserted: 0, contended: false, nextCursor: null });
-      expect(await context.service.loadFailedRetryNoticeScopes(scope)).toEqual([]);
+      expect(await context.service.loadFailedRetryNoticeScopes({ companyId: scope.companyId })).toEqual([]);
       await db.update(agentWakeupRequests).set({ runId: other.runId })
         .where(eq(agentWakeupRequests.id, staged[1].actionId));
       expect(await other.service.loadFailedRetryNoticeScopes({ companyId: other.fixture.companyId })).toEqual([]);
@@ -73217,17 +73556,19 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       await vi.waitFor(() =>
         expect(dm.post).toHaveBeenCalledWith(visibleFailure),
       );
-      await expect(
-        db
-          .select({ kind: chatActions.kind, status: chatActions.status })
-          .from(chatActions)
-          .where(eq(chatActions.deliveryId, delivery.id)),
-      ).resolves.toEqual(
-        expect.arrayContaining([
-          { kind: "inbound_wakeup", status: "failed" },
-          { kind: "provider_effect", status: "processed" },
-        ]),
-      );
+      await vi.waitFor(async () => {
+        await expect(
+          db
+            .select({ kind: chatActions.kind, status: chatActions.status })
+            .from(chatActions)
+            .where(eq(chatActions.deliveryId, delivery.id)),
+        ).resolves.toEqual(
+          expect.arrayContaining([
+            { kind: "inbound_wakeup", status: "failed" },
+            { kind: "provider_effect", status: "processed" },
+          ]),
+        );
+      });
     } finally {
       await retirePublicationFixture(service, endpoint.id);
     }
@@ -73934,6 +74275,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       context: Awaited<ReturnType<typeof failedChatRetryFixture>>,
     ) => Promise<void>,
     summary?: (issueId: string) => string,
+    finalize = true,
   ) {
     const context = await failedChatRetryFixture(
       provider,
@@ -74088,7 +74430,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       .from(nativeRunResults)
       .where(eq(nativeRunResults.runId, context.runId));
     const accepted = { resultId: acceptedRow.id };
-    await finalizeNativeRun({
+    if (finalize) await finalizeNativeRun({
       db,
       runId: context.runId,
       workspaceFinalizeStatus: "succeeded",
@@ -74097,7 +74439,8 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       .select()
       .from(nativeRunFinalizations)
       .where(eq(nativeRunFinalizations.runId, context.runId));
-    expect(coordinator.phase).toBe("committed");
+    if (finalize) expect(coordinator.phase).toBe("committed");
+    else expect(coordinator.phase).not.toBe("committed");
     await db
       .update(heartbeatRuns)
       .set({
@@ -74941,6 +75284,97 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     },
   );
 
+  it.each(["none", "reuse"] as const)("preserves a recorded %s presentation instead of recovering an unsolicited answer", async commentAction => {
+    const context = await committedChatResponseRecoveryFixture("telegram");
+    const presentationDecision = { commentAction, commentId: null, reasonCodes: ["interaction_owns_response"] };
+    try {
+      await db.update(heartbeatRuns).set({ resultJson: { presentationDecision } }).where(eq(heartbeatRuns.id, context.runId));
+      await expect(recoverCommittedNativeChatResponse(db, { companyId: context.fixture.companyId,
+        issueId: context.issue.id, runId: context.runId })).resolves.toBe(false);
+      expect(await nativeResponsePresentationWork(db).load({ companyId: context.fixture.companyId, runId: context.runId })).toEqual([]);
+      expect(await db.select().from(issueComments).where(eq(issueComments.createdByRunId, context.runId))).toEqual([]);
+      expect(await readChatPublicationsByEndpointId(context.endpoint.id)).toEqual([]);
+      expect((await readHeartbeatRunsById(context.runId))[0].resultJson).toEqual({ presentationDecision });
+    } finally { await context.service.shutdown(); }
+  });
+
+  it.each(["create", "legacy", "missing"] as const)("recovers a genuine unanswered %s presentation", async action => {
+    const context = await committedChatResponseRecoveryFixture("telegram");
+    try {
+      await db.update(heartbeatRuns).set({ resultJson: action === "missing" ? {} : {
+        presentationDecision: { commentId: null, ...(action === "create" ? { commentAction: "create" } : {}) },
+      } }).where(eq(heartbeatRuns.id, context.runId));
+      const work = nativeResponsePresentationWork(db);
+      const entries = await work.load({ companyId: context.fixture.companyId, runId: context.runId });
+      expect(entries).toHaveLength(1);
+      await expect(work.check(entries[0])).resolves.toBeNull();
+      expect(await readChatPublicationsByEndpointId(context.endpoint.id)).toHaveLength(1);
+      await expect(context.repair()).resolves.toBe(false);
+    } finally { await context.service.shutdown(); }
+  });
+
+  it.each(["conversation_done", "attention_request", "same_agent_reason", "monitor_reason", "skip_comment"] as const)(
+    "does not lock durably ineligible %s history on repeated issue milestones", async kind => {
+      const context = await committedChatResponseRecoveryFixture("telegram");
+      await context.service.shutdown();
+      await db.update(heartbeatRuns).set({ status: "succeeded",
+        ...(kind === "skip_comment" ? { contextSnapshot: { skipIssueComment: true } } : {}) }).where(eq(heartbeatRuns.id, context.runId));
+      const [accepted] = await db.select().from(nativeRunResults).where(eq(nativeRunResults.id, context.accepted.resultId));
+      const envelope = accepted.resultJson as { result: PrpStructuredRunResult; terminal: PrpTerminalState };
+      if (kind === "conversation_done") {
+        envelope.result = { ...envelope.result, reportedWorkDisposition: "done" };
+        envelope.terminal = { ...envelope.terminal, reportedWorkDisposition: "done" };
+        await db.update(issues).set({ conversationAgentId: context.fixture.assignedAgentId, conversationUserId: "owner-user", conversationState: "active", assigneeUserId: null })
+          .where(eq(issues.id, context.issue.id));
+      } else if (kind === "attention_request") {
+        envelope.result = { ...envelope.result, attentionRequests: [{ kind: "review", summary: "Needs a decision", ownerClass: "human" }] };
+      } else if (kind === "same_agent_reason" || kind === "monitor_reason") {
+        envelope.result = { ...envelope.result, continuation: { ...envelope.result.continuation,
+          kind: kind === "same_agent_reason" ? "same_agent" : "monitor" } as PrpStructuredRunResult["continuation"] };
+        await db.update(statusDecisions).set({ reasonCode: "external_chat_response_waiting" })
+          .where(eq(statusDecisions.id, context.coordinator.decisionId!));
+      }
+      await db.update(nativeRunResults).set({ resultJson: envelope }).where(eq(nativeRunResults.id, accepted.id));
+      const errors: unknown[] = [];
+      const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError: error => errors.push(error) });
+      const work = nativeResponsePresentationWork(db);
+      const worker = work.register(coordinator, () => true);
+      const debug = db.$client.options.debug;
+      const locks: string[] = [];
+      try {
+        await worker.ready;
+        await expect.poll(() => ({ active: idleWorkSnapshot().active, next: coordinator.nextWakeAt() }), { timeout: 10_000 })
+          .toEqual({ active: 0, next: null });
+        db.$client.options.debug = (_connection, query) => {
+          if (query.startsWith("select") && query.includes("for update") && /"(?:issues|heartbeat_runs|native_run_finalizations)"/.test(query)) locks.push(query);
+        };
+        for (let i = 0; i < 3; i++) {
+          await db.transaction(tx => notifyChatRunMilestones(tx, { companyId: context.fixture.companyId, issueId: context.issue.id }));
+          await expect.poll(() => ({ active: idleWorkSnapshot().active, next: coordinator.nextWakeAt() }), { timeout: 5000 })
+            .toEqual({ active: 0, next: null });
+        }
+        expect(locks).toEqual([]);
+        expect(await work.load({ companyId: context.fixture.companyId, issueId: context.issue.id })).toEqual([]);
+        expect(await readChatPublicationsByEndpointId(context.endpoint.id)).toEqual([]);
+        expect(errors).toEqual([]);
+      } finally { db.$client.options.debug = debug; worker.stop(); await coordinator.stop(); }
+    });
+
+  it("leaves fresh-commit accepted-response presentation to the worker when periodic replay skips it", async () => {
+    const context = await committedChatResponseRecoveryFixture("telegram", "coordinator", false, undefined, undefined, false);
+    try {
+      await finalizeNativeRun({ db, runId: context.runId, workspaceFinalizeStatus: "succeeded",
+        projectRunStatus: true, skipNativeResponsePresentation: true });
+      expect(await readChatPublicationsByEndpointId(context.endpoint.id)).toEqual([]);
+      expect(await db.select().from(issueComments).where(eq(issueComments.createdByRunId, context.runId))).toEqual([]);
+      const work = nativeResponsePresentationWork(db);
+      const entries = await work.load({ companyId: context.fixture.companyId, runId: context.runId });
+      expect(entries).toHaveLength(1);
+      await expect(work.check(entries[0])).resolves.toBeNull();
+      expect(await readChatPublicationsByEndpointId(context.endpoint.id)).toHaveLength(1);
+    } finally { await context.service.shutdown(); }
+  });
+
   it.each(["reconciler", "finalizer"])("leaves accepted-response presentation to its worker during periodic %s replay", async caller => {
     const context = await committedChatResponseRecoveryFixture("telegram");
     try {
@@ -75033,6 +75467,59 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       expect(await readChatPublicationsByEndpointId(context.endpoint.id)).toHaveLength(0);
       expect(errors).toEqual([]);
     } finally { worker.stop(); await coordinator.stop(); }
+  });
+
+  it.each(["milestone", "finalization"] as const)("ignores repeated unscoped routine %s hints without rebuilding dormant accepted-response history", async source => {
+    const context = await committedChatResponseRecoveryFixture("telegram");
+    await context.service.shutdown();
+    const errors: unknown[] = [];
+    const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError: error => errors.push(error) });
+    const work = nativeResponsePresentationWork(db);
+    const worker = work.register(coordinator, () => true);
+    try {
+      await worker.ready;
+      await expect.poll(() => ({ active: idleWorkSnapshot().active, next: coordinator.nextWakeAt() }), { timeout: 10_000 })
+        .toEqual({ active: 0, next: null });
+      expect(await work.load({ companyId: context.fixture.companyId, runId: context.runId })).toHaveLength(1);
+      const debug = db.$client.options.debug;
+      const queries: string[] = [];
+      db.$client.options.debug = (_connection, query) => {
+        if (query.startsWith("select") && query.includes("native_run_finalizations")) queries.push(query);
+      };
+      try {
+        for (let i = 0; i < 3; i++) {
+          await db.transaction(tx => source === "milestone"
+            ? notifyChatRunMilestones(tx, { companyId: context.fixture.companyId })
+            : notifyNativeFinalizationWork(tx, { companyId: context.fixture.companyId }));
+          await expect.poll(() => ({ active: idleWorkSnapshot().active, next: coordinator.nextWakeAt() }), { timeout: 5000 })
+            .toEqual({ active: 0, next: null });
+        }
+        expect(queries).toEqual([]);
+      } finally { db.$client.options.debug = debug; }
+      expect(await readChatPublicationsByEndpointId(context.endpoint.id)).toHaveLength(0);
+      expect(errors).toEqual([]);
+    } finally { worker.stop(); await coordinator.stop(); }
+  });
+
+  it("wakes dormant accepted-response history from the real company membership restoration owner", async () => {
+    const context = await committedChatResponseRecoveryFixture("telegram");
+    const [membership] = await db.select().from(companyMemberships).where(and(
+      eq(companyMemberships.companyId, context.fixture.companyId), eq(companyMemberships.principalId, "owner-user")));
+    await db.update(companyMemberships).set({ status: "suspended" }).where(eq(companyMemberships.id, membership.id));
+    const errors: unknown[] = [];
+    const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError: error => errors.push(error) });
+    const worker = nativeResponsePresentationWork(db).register(coordinator, () => true);
+    try {
+      await worker.ready;
+      await expect.poll(() => ({ active: idleWorkSnapshot().active, next: coordinator.nextWakeAt() }), { timeout: 10_000 })
+        .toEqual({ active: 0, next: null });
+      expect(await readChatPublicationsByEndpointId(context.endpoint.id)).toHaveLength(0);
+      await accessService(db).updateMember(context.fixture.companyId, membership.id, { status: "active" });
+      await expect.poll(async () => ({ count: (await readChatPublicationsByEndpointId(context.endpoint.id)).length,
+        active: idleWorkSnapshot().active, next: coordinator.nextWakeAt() }), { timeout: 5000 })
+        .toEqual({ count: 1, active: 0, next: null });
+      expect(errors).toEqual([]);
+    } finally { worker.stop(); await coordinator.stop(); await context.service.shutdown(); }
   });
 
   it.each(["commit", "rollback"])("keeps accepted-response work behind the outer %s boundary", async outcome => {
@@ -76587,6 +77074,104 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     }
   });
 
+  it.each(["task", "company", "startup"] as const)("bounds inbound notice scope discovery with denied history (%s)", async mode => {
+    const context = await deferredChatQueueFixture();
+    const other = await deferredChatQueueFixture();
+    const rejectedIds = Array.from({ length: 250 }, () => randomUUID());
+    try {
+      const [receipt] = await readAgentWakeupRequestsById(context.action.id);
+      await db.insert(chatActions).values(rejectedIds.map(id => ({
+        ...context.action, id, providerActionId: `inbound_wakeup:${id}`,
+        payload: { ...context.action.payload, commentId: randomUUID() },
+      })));
+      await db.insert(agentWakeupRequests).values(rejectedIds.map(id => ({
+        ...receipt, id, idempotencyKey: `chat-discovery-budget:${id}`,
+      })));
+      const scope = { companyId: context.fixture.companyId, issueId: context.conversation.issueId };
+      const events: Array<Record<string, unknown>> = [], now = Date.now();
+      const capture = createDatabaseResponseCapture({ start: now - 1, end: now + 59_000 }, event => events.push(event));
+      installDatabaseResponseCapture(db, { chatActions, agentWakeupRequests }, capture);
+      let scopes: Array<{ companyId: string; issueId: string }>;
+      try {
+        scopes = await context.service.loadInboundWakeNoticeScopes(
+          mode === "task" ? scope : mode === "company" ? { companyId: scope.companyId } : undefined,
+        );
+      } finally { capture.flush(); }
+      if (mode === "startup") {
+        expect(scopes).toEqual(expect.arrayContaining([scope, {
+          companyId: other.fixture.companyId, issueId: other.conversation.issueId,
+        }]));
+      } else {
+        expect(scopes).toEqual([scope]);
+      }
+      expect(events.at(-1)).toMatchObject({ startedQueries: mode === "task" ? 0 : 1,
+        completedQueries: mode === "task" ? 0 : 1, inFlightAtEnd: 0 });
+      expect(events.filter(event => event.event === "paperclip.db_response_capture.entry.v1")
+        .reduce((count, event) => count + Number(event.rows), 0)).toBe(mode === "task" ? 0 : scopes.length);
+    } finally {
+      await context.service.shutdown(); await other.service.shutdown();
+      await db.delete(chatActions).where(inArray(chatActions.id, [...rejectedIds, context.action.id]));
+      await db.delete(agentWakeupRequests).where(inArray(agentWakeupRequests.id, [...rejectedIds, context.action.id]));
+    }
+  });
+
+  it("reactivates restored ordinary input after an earlier Retry notice wake is consumed", async () => {
+    const context = await deferredChatQueueFixture();
+    const retryId = randomUUID(), intentId = randomUUID();
+    const scope = { companyId: context.fixture.companyId, issueId: context.conversation.issueId };
+    const errors: unknown[] = [], events: string[] = [];
+    const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true,
+      canReconcile: () => true, onError: error => errors.push(error) });
+    let unsubscribe = () => {};
+    try {
+      const [receipt] = await readAgentWakeupRequestsById(context.action.id);
+      await db.insert(chatActions).values({ ...context.action, id: retryId,
+        kind: "failed_run_retry", status: "failed", providerActionId: `task-retry-restore:${retryId}`,
+        payload: { issueId: scope.issueId, taskRetryIntentId: intentId },
+      });
+      await db.insert(agentWakeupRequests).values({ ...receipt, id: retryId, status: "failed",
+        idempotencyKey: `task-retry-restore:${retryId}`,
+      });
+      await db.transaction(tx => claimTaskRetryInput(tx, { companyId: scope.companyId,
+        retryActionId: retryId, sourceActionIds: [context.action.id] }));
+      expect((await readAgentWakeupRequestsById(context.action.id))[0]).toMatchObject({
+        status: "coalesced", runId: null, payload: { coalescedIntoWakeupRequestId: retryId },
+      });
+      vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+      const settle = async () => vi.waitFor(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(idleWorkSnapshot().active).toBe(0); expect(coordinator.nextWakeAt()).toBeNull();
+      }, { timeout: 10_000 });
+      await chatInboundWakeNoticeWork(context.service).register(coordinator, () => true).ready;
+      await db.transaction(tx => signalDatabaseWork(tx, DELIVERY_QUEUES.chatInboundWakeNotices, JSON.stringify(scope)));
+      await settle();
+      expect(await readChatPublicationsByEndpointId(context.endpoint.id)).toEqual([]);
+      const select = vi.spyOn(db, "select"), transaction = vi.spyOn(db, "transaction");
+      try {
+        await vi.advanceTimersByTimeAsync(120_000);
+        expect(select).not.toHaveBeenCalled(); expect(transaction).not.toHaveBeenCalled();
+      } finally { select.mockRestore(); transaction.mockRestore(); }
+      unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.chatInboundWakeNotices, (event, scopes) => {
+        if ([...scopes ?? []].some(value => value !== "*" && JSON.parse(value).companyId === scope.companyId)) events.push(event);
+      });
+      await releaseUnadmittedTaskRetryInput(db, { companyId: scope.companyId, retryActionId: retryId });
+      expect((await readAgentWakeupRequestsById(context.action.id))[0]).toMatchObject({ status: "deferred_issue_execution", runId: null });
+      expect(events).toContain("intent"); expect(events).toContain("settled");
+      await vi.waitFor(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(await readChatPublicationsByEndpointId(context.endpoint.id)).toEqual([expect.objectContaining({
+          commentId: context.action.payload.commentId, payload: { text: "Your follow-up is queued.", progressState: "queued" },
+        })]);
+        expect(coordinator.nextWakeAt()).toBeNull(); expect(idleWorkSnapshot().active).toBe(0);
+      }, { timeout: 10_000 });
+      expect(errors).toEqual([]);
+    } finally {
+      unsubscribe(); await coordinator.stop(); vi.useRealTimers(); await context.service.shutdown();
+      await db.delete(chatActions).where(eq(chatActions.id, retryId));
+      await db.delete(agentWakeupRequests).where(eq(agentWakeupRequests.id, retryId));
+    }
+  });
+
   it("isolates pre-run FIFO reconciliation scopes and exhausts published history", async () => {
     const first = await deferredChatQueueFixture();
     const second = await deferredChatQueueFixture();
@@ -76595,7 +77180,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       expect(await first.service.loadInboundWakeNoticeScopes({ companyId: scope.companyId })).toEqual([scope]);
       expect(await first.service.reconcileInboundWakeNotices({ scope })).toEqual({ inserted: 1, contended: false, nextCursor: null });
       expect(await readChatPublicationsByEndpointId(second.endpoint.id)).toEqual([]);
-      expect(await first.service.loadInboundWakeNoticeScopes(scope)).toEqual([]);
+      expect(await first.service.loadInboundWakeNoticeScopes({ companyId: scope.companyId })).toEqual([]);
       expect(await first.service.reconcileInboundWakeNotices({ scope })).toEqual({ inserted: 0, contended: false, nextCursor: null });
       expect(await second.service.reconcileInboundWakeNotices({
         scope: { companyId: second.fixture.companyId, issueId: second.conversation.issueId },
@@ -76623,7 +77208,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       expect(await readChatPublicationsByEndpointId(context.endpoint.id)).toEqual([]);
       release(); await holder;
       expect(await context.service.reconcileInboundWakeNotices({ scope })).toEqual({ inserted: 0, contended: false, nextCursor: null });
-      expect(await context.service.loadInboundWakeNoticeScopes(scope)).toEqual([]);
+      expect(await context.service.loadInboundWakeNoticeScopes({ companyId: scope.companyId })).toEqual([]);
     } finally {
       release(); await holder; await context.service.shutdown();
     }

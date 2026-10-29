@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, chatConversations, chatEndpoints, chatVoiceSessions, chatVoiceReports, companies, createDb, issues, toolApplications, toolConnections } from "@paperclipai/db";
+import { applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, agents, chatConversations, chatEndpoints, chatVoiceSessions, chatVoiceReports, companies, createDb, issues, toolApplications, toolConnections } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -25,8 +25,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   const fetchReport = vi.fn(async (_session: typeof chatVoiceSessions.$inferSelect) => result());
   beforeAll(async () => {
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("voice-call-reports-");
+    if (external) await applyPendingMigrations(external);
     db = createDb(external ?? temporary!.connectionString, { idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
-  }, 60_000);
+  }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   async function fixture() {
     const companyId = randomUUID(), endpointId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), conversationId = randomUUID();
     fixtureCompanies.push(companyId);
@@ -59,7 +60,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   async function session(patch: Partial<typeof chatVoiceSessions.$inferInsert> = {}, writer = db) {
-    const id = randomUUID();
+    const id = patch.id ?? randomUUID();
     return withVoiceSessionChange(writer, id, tx => tx.insert(chatVoiceSessions).values({ id, companyId, endpointId, conversationId, issueId, assignedAgentId: agentId,
       callerId: randomUUID(), callerAuthority: "member", mode: "browser", state: "ended", endedAt: new Date(), generation: 1, credentialFingerprint: "test", providerSessionId: randomUUID(),
       toolTokenHash: "a".repeat(64), idempotencyKey: id, requestFingerprint: id, createdAt: new Date(Date.now() - 60_000), updatedAt: new Date(Date.now() - 60_000), expiresAt: new Date(Date.now() + 600_000), ...patch }).returning()).then(rows => rows[0]);
@@ -85,6 +86,52 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       await tx.update(chatVoiceReports).set({ nextCheckAt: new Date(0) }).where(eq(chatVoiceReports.sessionId, id));
     });
   }
+  it("bounds report reconstruction and resets a partial scan when the same owner restarts", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: false });
+    const deadline = Date.now() + 120_000;
+    const ids: string[] = [];
+    for (let index = 0; index < 105; index++) {
+      const call = await session({ endedAt: new Date(Date.now() - 60_000) }); ids.push(call.id);
+      await db.insert(chatVoiceReports).values({ sessionId: call.id, companyId, nextCheckAt: new Date(deadline) });
+    }
+    const counts: number[] = [], select = db.select.bind(db);
+    const reads = vi.spyOn(db, "select").mockImplementation((...args) => {
+      const selection = select(...args), from = selection.from.bind(selection);
+      vi.spyOn(selection, "from").mockImplementation(table => {
+        const query = from(table);
+        if (table === chatVoiceSessions) {
+          const execute = query.execute.bind(query);
+          vi.spyOn(query, "execute").mockImplementation(async () => {
+            const rows = await execute(); counts.push(rows.length); return rows;
+          });
+        }
+        return query;
+      });
+      return selection;
+    });
+    try {
+      const service = await start();
+      expect(counts.reduce((sum, count) => sum + count, 0)).toBe(100);
+      await coordinator!.stop(); coordinator = undefined;
+      const beforeRestart = counts.length;
+      await start(service);
+      expect(counts.slice(beforeRestart).reduce((sum, count) => sum + count, 0)).toBe(100);
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(deadline), { interval: 0 });
+      expect(Math.max(...counts)).toBeLessThanOrEqual(100); reads.mockRestore();
+      await quiet(); expect(fetchReport).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(deadline - Date.now());
+      await vi.waitFor(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(idleWorkSnapshot().active).toBe(0);
+        expect(fetchReport).toHaveBeenCalledTimes(105);
+      }, { timeout: 5000 });
+      expect(fetchReport.mock.calls.map(([call]) => call.id).sort()).toEqual(ids.sort());
+      expect((await db.select().from(chatVoiceReports).where(eq(chatVoiceReports.companyId, companyId)))
+        .every(row => row.attempts === 1)).toBe(true);
+      await quiet();
+    } finally { reads.mockRestore(); }
+  });
   it("leaves configured idle, live calls, old history and unidentified calls quiet", async () => {
     await session({ state: "active", endedAt: null });
     await session({ endedAt: new Date(Date.now() - day - 1000) });
@@ -193,12 +240,21 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     release(result()); await checking;
   });
   it("pages and fairly schedules a backlog with one failing provider", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: false });
     const broken = await session(); for (let i = 0; i < 103; i++) await session();
-    const other = await fixture(); const last = await session(other);
+    const other = await fixture(); const last = await session({ ...other, id: "ffffffff-ffff-ffff-ffff-ffffffffffff" });
     fetchReport.mockImplementation(async call => { if (call.id === broken.id) throw new Error("unavailable"); return result(); });
-    await start(); expect(fetchReport.mock.calls.slice(0, 25).some(([call]) => call.id === last.id)).toBe(true);
-    await vi.waitFor(async () => { await vi.advanceTimersByTimeAsync(1000); expect(fetchReport).toHaveBeenCalledTimes(105); }, { timeout: 5000 });
-    expect((await report(broken.id)).attempts).toBe(1); await flush(); await quiet();
+    await start(); expect(fetchReport).toHaveBeenCalledTimes(25);
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.waitFor(() => expect(fetchReport).toHaveBeenCalledTimes(50), { interval: 0 });
+    expect(fetchReport.mock.calls.slice(25, 50).some(([call]) => call.id === last.id)).toBe(true);
+    for (let pass = 0; pass < 20; pass++) {
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.waitFor(() => expect(coordinator!.nextWakeAt() !== null || idleWorkSnapshot().active === 0).toBe(true), { interval: 0 });
+    }
+    expect(fetchReport).toHaveBeenCalledTimes(105);
+    await vi.waitFor(() => expect(idleWorkSnapshot().active).toBe(0), { interval: 0 });
+    expect((await report(broken.id)).attempts).toBe(1); await quiet();
   });
   it("reconstructs recent reports without scanning old history and preserves submillisecond page boundaries", async () => {
     const seed = await session({ endedAt: new Date(Date.now() - 2 * day) });

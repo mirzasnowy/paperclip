@@ -48,7 +48,7 @@ export type WorkspaceWorkerStopCheck =
   | { status: "pending" }
   | { status: "unsupported" };
 
-/** Only verified evidence authorizes takeover; pending evidence still owes a check. */
+
 export async function requestWorkspaceWorkerStopProof(binding: WorkspaceStopBinding, options: {
   env?: NodeJS.ProcessEnv; fetchImpl?: typeof fetch; now?: Date;
 } = {}): Promise<WorkspaceWorkerStopCheck> {

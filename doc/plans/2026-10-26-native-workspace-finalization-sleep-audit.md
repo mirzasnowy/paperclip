@@ -207,3 +207,61 @@ change and now proves readiness, registration of later recovery workers, and
 shutdown waiting for the callback. All 77 startup cases and all 18 real-database
 workspace-finalization lifecycle cases passed. Integrated typecheck, build, and
 remote checks remain required.
+
+## Current parent integration and scope regression (2026-10-29)
+
+The current parent is #17717 at reviewed head
+`281d579de0d08e907194b8b790a0597b07d16b7b`. Its normal merge into this
+slice preserves 1,198 parent-only paths, 15 owned-only paths, 11,517 shared
+paths, and 10 automatic shared merges. The only manual conflict is ordinary
+native-finalization fanout. Workspace finalization joins the existing issue/run
+scope guard there. Explicit company-wide settings and owner-release notifications
+keep their existing contracts. The entire Runner/package tree is byte-exact to
+the parent, including combined source profile 80 and both historical identities.
+
+The new real-database regression starts an idle workspace worker and submits
+three routine company-only finalization hints. A controlled baseline moves only
+workspace fanout outside the guard, retaining every other parent's guard. It
+produces three candidate SELECTs and fails the zero-query assertion. Restoring
+the production bytes passes the same assertion; a real accepted result then
+creates one successful workspace settlement and returns to quiet. The original
+18 lifecycle cases are not included in that focused one-case result; the full
+file is included in broader validation below. Both phases use fresh dedicated
+PostgreSQL 17 databases, and restore the production notification helper exactly.
+
+Fifteen added comments in eight files were removed before verification. Their
+nontrivia TypeScript token streams are unchanged; no directive was removed.
+No test assertion or timeout was weakened. No new table, migration, provider
+launch, independent timer or permanent database listener is introduced.
+
+### Complete current-source acceptance
+
+Source `4059b24e3ea5c623be54ade18ec9b6ab78eb0289` passes **2,376 distinct
+cases in 16 complete files**, with no skips in those files. The 14-file main
+command passes 1,693 cases in 270.99 seconds. Separate process recovery passes
+410 in 162.79 seconds; external-chat response passes 273 in 53.79 seconds. Server
+production typechecking, build, module boundaries, migration order and source
+identity checks pass. Thirteen fresh PostgreSQL 17 databases use the unchanged
+migration 413 schema. Embedded-only calls use existing fresh-per-call recovery
+fixtures; all temporary imports are restored byte-for-byte, and every selected
+test's saved hash matches after completion. Assertions and timeouts are unchanged.
+The source-scoped tests cover both accepted-result producers, outer commit and
+rollback, exact physical ownership, suppression/reactivation, coordinator leases,
+copy-back retries/refusals, drain/resume, held startup work and shutdown joins.
+
+Parent #17717 merged as `4c56702e06c698cc10d4a86514669aba0f4d9a9b`, after
+60 clean current-head checks and Greptile 5/5. Its complete reviewed tree equals
+the landed squash. Normal merge `5c46c52873158529736b8349e4d44658865108ee`
+adopts that ancestry and keeps this child's entire tested tree unchanged. This
+slice can now target master. Fresh current-head CI and review remain separate
+publication gates.
+
+No Runner source changed in this slice. The parent package tree's current profile
+80 validation remains applicable: 130 passing installation/compatibility/transport
+cases, 22 installed ACPX/Grok contract cases and 26 native-provider Rust cases.
+One pre-existing opt-in closed Pi snapshot case was skipped because its distribution
+root was unset; this does not qualify a live Pi installation. Earlier failed
+commands and review findings above remain in the record. The new controlled
+unscoped-hint baseline is an intended failing regression, with the same assertion
+green after the scoped change. No full local repository suite, deployed sleep,
+live provider qualification or expanded Cloud wake coverage is claimed.
