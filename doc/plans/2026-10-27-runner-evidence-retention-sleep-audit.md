@@ -181,3 +181,23 @@ claim of new live-provider qualification. Required fresh exact-head CI/security
 and reviews remain merge gates. Actual parent squash adoption is still required
 before publication; any new upstream behavior must remain preserved and receive
 appropriate combined-context checks.
+
+## Workspace-seed upstream composition
+
+The next upstream merge (`27fbdb2a74e13141065555b6a2fa5acdd8da7964`)
+optimizes verified workspace seed reuse. It is preserved by a normal merge,
+including its adapter implementation, tests and native workspace history. On
+combined source `a288a58287047193774eda54601ac9eda732d2e8`, **321 cases
+across 14 complete files passed together**, without skips, in 95.73 seconds.
+This includes the previous complete 11-file retention selection and the full
+workspace-seed reuse, GitHub launcher and native workspace-history files. These
+results replace, rather than add to, the earlier 285-case acceptance total for
+this combined source. Adapter/database builds, server typechecking/build, module
+boundaries, target migration order and generated release profiles pass. Every
+selected source hash and temporary fixture import restores exactly. Provider
+identity inputs remain unchanged; the inherited exception above still applies.
+
+Actual skill-retention squash adoption remains a publication prerequisite. If
+its tree carries only these already accepted upstream changes, tree identity
+will prove that adoption changes no accepted runtime. Any additional behavior
+will receive scoped combined-context validation before publication.
