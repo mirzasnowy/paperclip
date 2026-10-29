@@ -324,3 +324,57 @@ first timing failure remains recorded; these passes are not evidence that it
 never happened. An initial consumer command used incorrect filenames and an
 incorrect cache database override and was interrupted; it is not acceptance.
 Fresh remote CI and automated reviews remain required after publishing.
+
+## October 29 reconciliation, review repair and current acceptance
+
+This existing skill-retention slice was reconciled with the qualified agent-timer
+parent through normal merges. Startup preserves both retention unsubscription and
+task-drain expiry shutdown; the shared deadline helper keeps the new optional
+settlement callback and the parent's continuation option. Other paths match the
+automatic merge. Packages remain byte-identical to the qualified profile-80 tree.
+The later monitor-parent audit changes no retention runtime or selected test.
+
+Greptile's remaining P2 about own-company page completion was reproduced. A cache
+access hint can expire while that same company's directory cursor is active. The
+worker records the company as dirty and consumes the expired timestamp, but scan
+completion then applies a new 30-second fresh-scan floor. A directory already
+passed by the cursor therefore waits despite its expired grace window.
+
+The repair records a `rescanOwed` bit on the active company when its saved expiry
+or cache deadline is consumed. Completion keeps that company eligible instead of
+reapplying the ordinary floor. Starting the fresh scan clears the bit. Ordinary
+change batching and failure backoff keep their existing behavior; no expired
+timestamp is retained to force a busy loop, and no new polling or durable table is
+introduced. The existing filesystem records remain restart truth.
+
+The new worker regression uses real cache-change publication and the real shared
+coordinator with a paged prune fixture. The unchanged prior worker completes four
+pages, then delays the owed fresh scan. The repaired worker starts the fifth scan
+with a fresh cursor within the same deadline pass, disarms, and performs no further
+scan during another minute. The same assertions and timers fail before the repair
+and pass afterward. This is scheduling-boundary evidence; the complete real-filesystem
+retention suite separately checks actual pruning, leases, pins and path safety.
+
+Source `3d06de2a8f490e62f8022b8894ba7bbc3a985752` passed **799 cases across
+32 complete files**, without skips, in 350.36 seconds. Coverage includes real
+skill retention/cache/configuration and producers, runtime selection/concurrency,
+environment-task and plugin-warm-task behavior, native environment/finalization
+and retained-session cleanup, configuration/settings, startup, and the shared
+deadline consumers including agent timers, monitors and routines. Database build,
+production server typechecking/build, module boundaries, target migration order
+and Runner profile identity pass. Eighteen fresh PostgreSQL 17 schemas plus
+per-file fixtures applied all 412 journal entries through index 413. All selected
+source hashes and temporary local fixture imports were restored exactly.
+
+An additional fresh-database check ran all 19 plugin-warm-task cases against a
+blank dedicated PostgreSQL database with no separate migration command. The
+fixture itself created the schema and the full file passed in 10.28 seconds,
+proving the earlier external-database migration finding is addressed. These
+19 cases are already included in the 799 unique-case count, not added again.
+
+This is bounded local acceptance and a verified repair of the stated P2. Final
+publication must adopt the actual merged agent-timer prerequisite and receive
+fresh CI/security and reviews on its exact head. No full local repository-suite,
+live provider, production load, external wake, measured host/database suspension
+or fleet-savings claim is made. Earlier historical results and limitations above
+remain attached to their original revisions.
