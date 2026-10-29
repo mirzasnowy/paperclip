@@ -47,8 +47,8 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
     db = createDb(external ?? temporary!.connectionString, { idleTimeoutSeconds: 0, connectTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
   }, 30_000);
   beforeEach(async () => {
-    // Rolled-back producer tests can leave an uncertain XID without a worker.
-    // Reconcile that fixture's state before observing the next worker startup.
+
+
     await reconcileDatabaseWork(db, DELIVERY_QUEUES.agentTimers);
     await db.execute(sql`truncate companies cascade`);
     errors.length = 0;
@@ -119,7 +119,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
     expect(tick).toHaveBeenCalledOnce();
     expect(inspect).toHaveBeenCalledOnce();
     expect(f.enqueueWakeup).toHaveBeenCalledTimes(initialEnqueues);
-    // These are real owner methods and real SQL; a due interval eventually runs.
+
     await vi.advanceTimersByTimeAsync(Math.max(0, firstScan - Date.now()));
     await vi.waitFor(() => expect(f.enqueueWakeup).toHaveBeenCalledTimes(initialEnqueues + 1));
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBeGreaterThanOrEqual(firstScan + 30_000));
@@ -369,8 +369,8 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
       if (result === null && !firstAttemptSettled) {
         firstAttemptSettled = true;
         intercepted.mockRestore();
-        // Let the unsuccessful CAS notification fully reconcile before the
-        // old execution completes and checkout tries its adoption transaction.
+
+
         await quiet();
         await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, oldRun.id));
       }
@@ -465,7 +465,7 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
       runtimeConfig: { heartbeat: { enabled: true, intervalSec: 600 } },
     }).then(() => null, error => error as Error);
     try {
-      // Observe failure as well as the barrier, so a broken fixture cannot hang.
+
       const earlyError = await Promise.race([written.then(() => null), mutation]);
       expect(earlyError).toBeNull();
       await vi.advanceTimersByTimeAsync(2000);
@@ -596,8 +596,8 @@ describe.skipIf(!support.supported)("agent timer owned deadlines", () => {
     startTaskDrain(purpose === "idle" ? { purpose } : {});
     await agentService(db).update(f.agent.id, { runtimeConfig: { heartbeat: { enabled: true, intervalSec: 600 } } });
     await vi.advanceTimersByTimeAsync(2000);
-    // The coordinator keeps an idle hold until this admitted write is reconciled.
-    // Waiting during drain must be memory-only even though work remains owed.
+
+
     expect(idleWorkSnapshot().active).toBe(1);
     const select = vi.spyOn(db, "select"), execute = vi.spyOn(db, "execute"), transaction = vi.spyOn(db, "transaction");
     try {

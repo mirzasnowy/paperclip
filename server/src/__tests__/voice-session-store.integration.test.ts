@@ -1,10 +1,10 @@
 import { subscribeDatabaseWork } from "@paperclipai/db";
-import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import * as voiceReplyNotifications from "../services/voice/voice-reply-notifications.js";
 import { voiceReplySchedule } from "../services/voice/voice-reply-schedule.js";
 import { registerVoiceReplyWork } from "../services/voice/voice-reply-work.js";
 import { pushVoiceReplies } from "../services/voice/voice-reply-push.js";
 import { notifyVoiceReplies } from "../services/voice/voice-reply-notifications.js";
+import { DELIVERY_QUEUES, subscribeDeliveryWork } from "../services/delivery-work-notifications.js";
 import { toolAccessService } from "../services/tool-access.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
@@ -22,7 +22,7 @@ import { VOICE_RESULT_NOTIFICATION } from "@paperclipai/shared";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { chatActions, instanceUserRoles, principalPermissionGrants, environments, chatVoiceInboundCalls, chatVoicePhoneLines, chatVoiceReports, heartbeatRuns, toolProfileBindings, chatVoiceCallbacks, agentWakeupRequests, issueThreadInteractions, issueQuestionResponseDeliveries, issueComments, agents, chatConversations, chatDeliveries, chatEndpoints, chatPublications, chatVoiceReplies, chatVoiceSessions, chatVoiceToolCalls, companies, companyMemberships, companySecrets, connectionGrants, connectionGrantMembers, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, issues, toolApplications, toolConnections, toolConnectionInstalls } from "@paperclipai/db";
+import { applyPendingMigrations, chatActions, instanceUserRoles, principalPermissionGrants, environments, chatVoiceInboundCalls, chatVoicePhoneLines, chatVoiceReports, heartbeatRuns, toolProfileBindings, chatVoiceCallbacks, agentWakeupRequests, issueThreadInteractions, issueQuestionResponseDeliveries, issueComments, agents, chatConversations, chatDeliveries, chatEndpoints, chatPublications, chatVoiceReplies, chatVoiceSessions, chatVoiceToolCalls, companies, companyMemberships, companySecrets, connectionGrants, connectionGrantMembers, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, issues, toolApplications, toolConnections, toolConnectionInstalls } from "@paperclipai/db";
 import { configureSpekoSessionTools } from "../services/voice/speko-tool-setup.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { chatChannelService } from "../services/chat-channels.js";
@@ -47,6 +47,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   beforeAll(async () => {
     if (!external) database = await startEmbeddedPostgresTestDatabase("paperclip-speko-store-");
+    if (external) await applyPendingMigrations(external);
     db = createDb(external ?? database!.connectionString, { idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await database?.cleanup(); });
@@ -79,6 +80,55 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     }
     return { companyId, endpointId, agentId, connectionId, issueId, conversationId, callerId, sessionId, store, request, reserved, accept, toolInput, publication };
   }
+
+  it("keeps saved report deadlines quiet across repeated voice connection saves", async () => {
+    const f = await nativeServiceFixture();
+    const [seed] = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.id, f.sessionId));
+    const endedAt = new Date(), deadline = Date.now() + 600_000;
+    await db.update(chatVoiceSessions).set({ state: "ended", endedAt }).where(eq(chatVoiceSessions.id, seed.id));
+    const ids = [seed.id, ...Array.from({ length: 204 }, () => randomUUID())];
+    await db.insert(chatVoiceSessions).values(ids.slice(1).map(id => ({
+      ...seed, id, callerId: randomUUID(), idempotencyKey: id, providerSessionId: randomUUID(),
+      state: "ended" as const, endedAt,
+    })));
+    await db.insert(chatVoiceReports).values(ids.map(sessionId => ({ companyId: f.companyId, sessionId, nextCheckAt: new Date(deadline) })));
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    const onError = vi.fn(), coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError });
+    const settle = () => vi.waitFor(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(idleWorkSnapshot().active).toBe(0);
+      expect(coordinator.nextWakeAt()).toBe(deadline);
+    }, { timeout: 5000 });
+    let selected = 0; const select = db.select.bind(db);
+    try {
+      await f.service.registerReportWork(coordinator, () => true).ready; await settle();
+      const reads = vi.spyOn(db, "select").mockImplementation((...args) => {
+        const selection = select(...args), from = selection.from.bind(selection);
+        vi.spyOn(selection, "from").mockImplementation(table => {
+          const query = from(table);
+          if (table === chatVoiceSessions) {
+            const execute = query.execute.bind(query);
+            vi.spyOn(query, "execute").mockImplementation(async () => {
+              const rows = await execute(); selected += rows.length; return rows;
+            });
+          }
+          return query;
+        });
+        return selection;
+      });
+      try {
+        for (let index = 0; index < 5; index++) {
+          await toolAccessService(db).updateConnection(f.connectionId, { name: `Saved report ${index}` });
+          await settle();
+        }
+        expect(selected).toBe(0); expect(f.transport.callReport).not.toHaveBeenCalled();
+        expect(onError).not.toHaveBeenCalled();
+      } finally { reads.mockRestore(); }
+    } finally {
+      await coordinator.stop(); vi.useRealTimers(); vi.restoreAllMocks();
+      await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.companyId, f.companyId));
+    }
+  });
 
   it.each(["hangup", "signed callback", "reply ended"])("wakes report refresh from real %s and advances it on a later callback", async trigger => {
     const f = await inboundFixture();
@@ -148,6 +198,53 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     } finally {
       await coordinator.stop(); vi.useRealTimers();
       await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.companyId, f.companyId));
+    }
+  });
+
+  it("keeps retained history quiet when a voice connection configuration is saved repeatedly", async () => {
+    const f = await inboundFixture();
+    const ended = f.sign({ type: "call.status", call_id: f.call.providerSessionId, status: "ended" });
+    await f.service.inbound.lifecycle(f.endpoint.publicId, ended.body, ended.headers);
+    await db.insert(chatVoiceInboundCalls).values(Array.from({ length: 204 }, () => ({
+      ...f.call, id: randomUUID(), providerSessionId: randomUUID(), state: "ended" as const,
+      cleanupConfirmedAt: new Date(), updatedAt: new Date(),
+    })));
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    const onError = vi.fn(), coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError });
+    const expected = f.call.expiresAt.getTime() + 7 * 86_400_000;
+    const settle = () => vi.waitFor(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(idleWorkSnapshot().active).toBe(0);
+      expect(coordinator.nextWakeAt()).toBe(expected);
+    }, { timeout: 5000 });
+    let selected = 0;
+    const select = db.select.bind(db);
+    try {
+      await f.service.inbound.registerRetentionWork(coordinator, () => true).ready; await settle();
+      const reads = vi.spyOn(db, "select").mockImplementation((...args) => {
+        const selection = select(...args), from = selection.from.bind(selection);
+        vi.spyOn(selection, "from").mockImplementation(table => {
+          const query = from(table);
+          if (table === chatVoiceInboundCalls) {
+            const execute = query.execute.bind(query);
+            vi.spyOn(query, "execute").mockImplementation(async () => {
+              const rows = await execute(); selected += rows.length; return rows;
+            });
+          }
+          return query;
+        });
+        return selection;
+      });
+      try {
+        for (let index = 0; index < 5; index++) {
+          await toolAccessService(db).updateConnection(f.connectionId, { name: `Saved voice ${index}` });
+          await settle();
+        }
+        expect(selected).toBe(0); expect(onError).not.toHaveBeenCalled();
+      } finally { reads.mockRestore(); }
+    } finally {
+      await coordinator.stop(); vi.useRealTimers(); vi.restoreAllMocks();
+      await db.delete(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.companyId, f.companyId));
     }
   });
 
@@ -963,8 +1060,26 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const push = () => f.service.pushReplies(25, f.companyId, f.endpointId);
     return {...f, session, publication, push};
   }
-  async function replyWorker(f: Awaited<ReturnType<typeof pushFixture>>, canRun = () => true) {
-    const service = voiceReplySchedule(db, { store: f.store, push: sessionId => pushVoiceReplies(db, {
+  function replyInventoryReads() {
+    const counts: number[] = [], select = db.select.bind(db);
+    const measurement = vi.spyOn(db, "select").mockImplementation((...args) => {
+      const selection = select(...args), from = selection.from.bind(selection);
+      vi.spyOn(selection, "from").mockImplementation(table => {
+        const query = from(table);
+        if ((table === chatVoiceSessions || table === chatActions) && args[0] && "connectionId" in args[0]) {
+          const execute = query.execute.bind(query);
+          vi.spyOn(query, "execute").mockImplementation(async () => {
+            const rows = await execute(); counts.push(rows.length); return rows;
+          });
+        }
+        return query;
+      });
+      return selection;
+    });
+    return { counts, stop: () => measurement.mockRestore() };
+  }
+  async function replyWorker(f: Awaited<ReturnType<typeof pushFixture>>, canRun = () => true, existing?: ReturnType<typeof voiceReplySchedule>) {
+    const service = existing ?? voiceReplySchedule(db, { store: f.store, push: sessionId => pushVoiceReplies(db, {
       store: f.store, credentials: f.credentials, provider: () => f.transport, limit: 1, sessionId, recoverDispatches: false,
     }) });
     const onError = vi.fn();
@@ -1100,6 +1215,46 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       await worker.quiet(); expect(worker.onError).not.toHaveBeenCalled();
     } finally { await worker.coordinator.stop(); vi.useRealTimers(); }
   });
+  it.each(["normal publication", "operator resolution"] as const)("bounds inventory reads for repeated actual %s with unrelated calls and dispatches", async path => {
+    const f = await pushFixture(); await f.push();
+    const [source] = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.id, f.session.id));
+    const identities = Array.from({ length: 105 }, () => ({ id: randomUUID(), conversationId: randomUUID() }));
+    await db.insert(chatConversations).values(identities.map(row => ({ id: row.conversationId, companyId: f.companyId,
+      endpointId: f.endpointId, issueId: f.issueId, externalConversationId: row.conversationId,
+      externalThreadId: row.conversationId, externalLabel: "Unrelated call", isDirectMessage: true })));
+    await db.insert(chatVoiceSessions).values(identities.map(row => ({ ...source, ...row, callerId: row.id,
+      providerSessionId: row.id, idempotencyKey: row.id, requestFingerprint: row.id })));
+    await db.insert(chatActions).values(identities.map(row => ({ companyId: f.companyId, endpointId: f.endpointId,
+      conversationId: row.conversationId, kind: "speko_voice_reply_push", providerActionId: row.id, status: "dispatching",
+      payload: { sessionId: row.id, replyId: randomUUID() }, updatedAt: new Date(Date.now() + 3_600_000) })));
+    const chat = chatChannelService(db, { heartbeat: { wakeup: vi.fn() } });
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    const worker = await replyWorker(f);
+    let stopMeasurement: (() => void) | undefined;
+    try {
+      const settle = () => vi.waitFor(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(idleWorkSnapshot().active).toBe(0);
+        expect(worker.coordinator.nextWakeAt()).toBeGreaterThan(Date.now() + 60_000);
+      }, { timeout: 5000 });
+      await settle(); await worker.quiet(2000);
+      const reads = replyInventoryReads(), counts = reads.counts;
+      stopMeasurement = reads.stop;
+      const before = f.transport.sendCallMessage.mock.calls.length;
+      for (let index = 0; index < 5; index++) {
+        const [publication] = await db.insert(chatPublications).values({ companyId: f.companyId, endpointId: f.endpointId,
+          conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(),
+          state: path === "normal publication" ? "pending" : "delivery_unknown", payload: { text: `Answer ${index}` } }).returning();
+        if (path === "normal publication") await chat.processPendingPublications(25, { maintenance: false });
+        else await chat.resolvePublication(f.endpointId, publication.id, "mark_delivered", f.callerId);
+        await settle();
+        expect(f.transport.sendCallMessage).toHaveBeenCalledTimes(before + index + 1);
+      }
+      expect(counts.reduce((sum, count) => sum + count, 0)).toBeLessThanOrEqual(5 * 25);
+      stopMeasurement(); stopMeasurement = undefined;
+      await worker.quiet(2000); expect(worker.onError).not.toHaveBeenCalled();
+    } finally { stopMeasurement?.(); await worker.coordinator.stop(); await chat.shutdown(); vi.useRealTimers(); }
+  });
   it.each(["normal publication", "operator resolution"] as const)("wakes phone delivery from actual %s after its early enqueue has gone idle", async path => {
     const f = await pushFixture();
     await db.update(chatPublications).set({ state: path === "normal publication" ? "pending" : "delivery_unknown" })
@@ -1133,20 +1288,61 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       release(); await publishing; notification.mockRestore(); await worker.coordinator.stop(); await chat.shutdown(); vi.useRealTimers();
     }
   });
-  it("reconstructs and quarantines every abandoned phone dispatch across inventory and work batches", async () => {
+  it("bounds abandoned-dispatch pages and reconstructs the same service after a partial-scan restart", async () => {
     const f = await pushFixture();
     await db.update(chatVoiceSessions).set({ state: "ended", endedAt: new Date() }).where(eq(chatVoiceSessions.id, f.session.id));
     await db.insert(chatActions).values(Array.from({ length: 105 }, () => ({ companyId: f.companyId, endpointId: f.endpointId,
       conversationId: f.conversationId, kind: "speko_voice_reply_push", providerActionId: randomUUID(), status: "dispatching",
-      payload: { sessionId: f.session.id, replyId: randomUUID() }, updatedAt: new Date(Date.now() - 60_000) })));
+      payload: { sessionId: f.session.id, replyId: randomUUID() }, updatedAt: new Date(Date.now() + 60_000) })));
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
-    const worker = await replyWorker(f);
+    const reads = replyInventoryReads();
+    let worker: Awaited<ReturnType<typeof replyWorker>> | undefined;
     try {
+      worker = await replyWorker(f);
+      expect(reads.counts.reduce((sum, count) => sum + count, 0)).toBe(100);
+      expect(worker.onError).not.toHaveBeenCalled();
+      const service = worker.service;
+      await worker.coordinator.stop();
+      const beforeRestart = reads.counts.length;
+      worker = await replyWorker(f, () => true, service);
+      expect(reads.counts.slice(beforeRestart).reduce((sum, count) => sum + count, 0)).toBe(100);
+      await vi.waitFor(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(idleWorkSnapshot().active).toBe(0);
+        expect(worker!.coordinator.nextWakeAt()).toBeGreaterThan(Date.now() + 60_000);
+      });
+      expect(Math.max(...reads.counts)).toBeLessThanOrEqual(100);
+      reads.stop(); await worker.quiet(1000);
+      await vi.advanceTimersByTimeAsync(worker.coordinator.nextWakeAt()! - Date.now());
       await worker.settled();
       const actions = await db.select().from(chatActions).where(eq(chatActions.endpointId, f.endpointId));
       expect(actions).toHaveLength(105); expect(actions.every(action => action.status === "unknown")).toBe(true);
-      expect(f.transport.sendCallMessage).not.toHaveBeenCalled(); await worker.quiet(); expect(worker.onError).not.toHaveBeenCalled();
-    } finally { await worker.coordinator.stop(); vi.useRealTimers(); }
+      expect(f.transport.sendCallMessage).not.toHaveBeenCalled(); reads.stop(); await worker.quiet(); expect(worker.onError).not.toHaveBeenCalled();
+    } finally { reads.stop(); await worker?.coordinator.stop(); vi.useRealTimers(); }
+  });
+  it("preserves a blocked call first observed behind an in-progress reconstruction cursor", async () => {
+    const f = await pushFixture(); await f.push();
+    const [source] = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.id, f.session.id));
+    await db.insert(chatVoiceSessions).values(Array.from({ length: 105 }, () => {
+      const id = `8${randomUUID().slice(1)}`;
+      return { ...source, id, callerId: id, providerSessionId: id, idempotencyKey: id, requestFingerprint: id };
+    }));
+    const service = voiceReplySchedule(db, { store: f.store, push: vi.fn() });
+    const scope = { kind: "company", id: f.companyId } as const;
+    expect((await service.load(scope)).complete).toBe(false);
+    const id = `00000000-0000-0000-0000-${randomUUID().slice(-12)}`;
+    await db.insert(chatVoiceSessions).values({ ...source, id, callerId: id, providerSessionId: id,
+      idempotencyKey: id, requestFingerprint: id });
+    const { rows } = await service.load({ kind: "session", id });
+    expect(rows).toHaveLength(1);
+    await expect(db.transaction(tx => f.store.authorizeSession(tx, f.companyId, id))).rejects.toMatchObject({ status: 403 });
+    expect(await service.check(rows[0])).toBeNull();
+    while (!(await service.load(scope)).complete) {}
+    const wake = vi.fn(), unsubscribe = subscribeDeliveryWork(db, DELIVERY_QUEUES.voiceReplies, wake);
+    try {
+      await db.transaction(tx => service.authorityAvailable(tx, id));
+      await vi.waitFor(() => expect(wake).toHaveBeenCalledOnce());
+    } finally { unsubscribe(); }
   });
   it("retains phone reply work after a failed state read and retries without intervening scans", async () => {
     const f = await pushFixture();
@@ -1679,12 +1875,19 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.update(chatVoiceReports).set({transcript: [...detail.report.transcript, {...detail.report.transcript[0]!, id: "legacy-control", index: 1, text: VOICE_RESULT_NOTIFICATION}]}).where(eq(chatVoiceReports.sessionId, first.session.id));
     expect((await f.service.callDetail(f.companyId, first.session.id, f.input.caller)).report.transcript).toEqual(detail.report.transcript);
 
+    const other = await f.service.start({ ...f.input, idempotencyKey: randomUUID() });
+    await f.service.end(f.companyId, other.session.id, f.input.caller);
+    await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 60_000) }).where(eq(chatVoiceSessions.id, other.session.id));
     await db.update(chatVoiceReports).set({ nextCheckAt: new Date(0) }).where(eq(chatVoiceReports.sessionId, first.session.id));
-    const latest = new Date(Date.now() + 10000);
-    f.transport.callReport.mockResolvedValueOnce({ ...await f.transport.callReport(), costMicroUsd: "240000", providerUpdatedAt: latest });
+    const [stored] = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.id, first.session.id));
+    const baseline = await f.transport.callReport(), latest = new Date(Date.now() + 10000);
+    let response = { ...baseline, costMicroUsd: "240000", providerUpdatedAt: latest };
+    f.transport.callReport.mockImplementation(async (providerSessionId?: string) => providerSessionId === stored.providerSessionId ? response : baseline);
     await f.service.reconcile(1000);
+    expect((await f.service.callDetail(f.companyId, first.session.id, f.input.caller)).report.costMicroUsd).toBe("240000");
+    expect((await f.service.callDetail(f.companyId, other.session.id, f.input.caller)).report.costMicroUsd).toBe("120000");
     await db.update(chatVoiceReports).set({ nextCheckAt: new Date(0) }).where(eq(chatVoiceReports.sessionId, first.session.id));
-    f.transport.callReport.mockResolvedValueOnce({ ...await f.transport.callReport(), costMicroUsd: "1", providerUpdatedAt: new Date(0) });
+    response = { ...baseline, costMicroUsd: "1", providerUpdatedAt: new Date(0) };
     await f.service.reconcile(1000);
     expect((await f.service.callDetail(f.companyId, first.session.id, f.input.caller)).report.costMicroUsd).toBe("240000");
     expect(await db.select().from(chatVoiceReports).where(eq(chatVoiceReports.sessionId, first.session.id))).toHaveLength(1);

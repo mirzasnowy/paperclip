@@ -84,13 +84,15 @@ describe("retained native cleanup scheduled lifecycle", () => {
     finally { db.$client.options.debug = previous; }
   }
   async function commitCandidate() {
+    const runId = randomUUID();
     return db.transaction(async tx => {
-      await notifyNativeFinalizationWork(tx, { companyId });
-      return candidate({}, tx as unknown as Db);
+      await notifyNativeFinalizationWork(tx, { companyId, runId });
+      return candidate({ runId }, tx as unknown as Db);
     });
   }
   async function candidate(
     options: {
+      runId?: string;
       owner?: { companyId: string; agentId: string };
       run?: Partial<typeof heartbeatRuns.$inferInsert>;
       coordinator?: Partial<typeof nativeRunFinalizations.$inferInsert>;
@@ -101,7 +103,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     writer: Db = db,
   ) {
     const owner = options.owner ?? { companyId, agentId };
-    const runId = randomUUID();
+    const runId = options.runId ?? randomUUID();
     const issueId = options.issueId ?? randomUUID();
     const contractId = randomUUID();
     if (!options.issueId) await writer
@@ -216,6 +218,34 @@ describe("retained native cleanup scheduled lifecycle", () => {
     cleanup.mockImplementation(input => reconcileRetainedNativeSessionCleanup(db, input));
     await start(); await flush();
     expect(cleanup).toHaveBeenCalledTimes(1);
+    await quiet();
+  });
+
+  it("keeps dormant retained cleanup quiet on unscoped finalization hints and resumes from local release", async () => {
+    const runId = await candidate();
+    cleanup.mockResolvedValue({ runId, status: "deferred", waitFor: "session_release" });
+    await start();
+    await flush();
+    await quiet();
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(await retainedNativeSessionCleanupWork(db, cleanup).load({ companyId, runId })).toHaveLength(1);
+    const debug = db.$client.options.debug;
+    const queries: string[] = [];
+    db.$client.options.debug = (_connection, query) => {
+      if (query.startsWith("select") && query.includes("native_run_finalizations")) queries.push(query);
+    };
+    try {
+      for (let i = 0; i < 3; i++) {
+        await db.transaction(tx => notifyNativeFinalizationWork(tx, { companyId }));
+        await flush();
+      }
+      expect(queries).toEqual([]);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    } finally { db.$client.options.debug = debug; }
+    cleanup.mockImplementation(settle);
+    releaseRetainedNativeSessionCleanup(db, { companyId, runId });
+    await flush();
+    expect(cleanup).toHaveBeenCalledTimes(2);
     await quiet();
   });
 

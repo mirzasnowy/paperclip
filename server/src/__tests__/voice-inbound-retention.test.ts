@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, chatConversations, chatEndpoints, chatVoiceInboundCalls, chatVoiceSessions, companies, createDb, issues, toolApplications, toolConnections } from "@paperclipai/db";
+import { applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, agents, chatConversations, chatEndpoints, chatVoiceInboundCalls, chatVoiceSessions, companies, createDb, issues, toolApplications, toolConnections } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -20,8 +20,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   const week = 7 * 86_400_000;
   beforeAll(async () => {
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("voice-inbound-retention-");
+    if (external) await applyPendingMigrations(external);
     db = createDb(external ?? temporary!.connectionString, { idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
-  }, 60_000);
+  }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   async function fixture() {
     const companyId = randomUUID(), endpointId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), conversationId = randomUUID();
     fixtureCompanies.push(companyId);
@@ -55,7 +56,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   async function admission(patch: Partial<typeof chatVoiceInboundCalls.$inferInsert> = {}, writer = db) {
-    const id = randomUUID();
+    const id = patch.id ?? randomUUID();
     return writer.transaction(async tx => {
       await notifyVoiceInbound(tx, { kind: "admission", id });
       return (await tx.insert(chatVoiceInboundCalls).values({ id, companyId, endpointId, providerSessionId: randomUUID(), state: "ended", cleanupConfirmedAt: new Date(), updatedAt: new Date(Date.now() - week - 1000), approvalCode: "123456", generation: 1, credentialFingerprint: "test", toolTokenHash: "a".repeat(64), requestFingerprint: id, expiresAt: new Date(Date.now() - week - 1000), ...patch }).returning())[0];
@@ -79,6 +80,56 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     finally { reads.mockRestore(); writes.mockRestore(); }
   }
   async function row(id: string) { return (await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.id, id)))[0]; }
+  it("bounds history inventory and restores all deadlines when the same owner restarts mid-scan", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: false });
+    const deadline = Date.now() + 60_000;
+    for (let index = 0; index < 105; index++) await admission({ expiresAt: new Date(deadline - week), updatedAt: new Date(deadline - week) });
+    const counts: number[] = [], select = db.select.bind(db);
+    const reads = vi.spyOn(db, "select").mockImplementation((...args) => {
+      const selection = select(...args), from = selection.from.bind(selection);
+      vi.spyOn(selection, "from").mockImplementation(table => {
+        const query = from(table);
+        if (table === chatVoiceInboundCalls) {
+          const execute = query.execute.bind(query);
+          vi.spyOn(query, "execute").mockImplementation(async () => {
+            const rows = await execute(); counts.push(rows.length); return rows;
+          });
+        }
+        return query;
+      });
+      return selection;
+    });
+    try {
+      const service = await start();
+      expect(counts.reduce((sum, count) => sum + count, 0)).toBe(100);
+      await coordinator!.stop(); coordinator = undefined;
+      const beforeRestart = counts.length;
+      await start(service);
+      expect(counts.slice(beforeRestart).reduce((sum, count) => sum + count, 0)).toBe(100);
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(deadline), { interval: 0 });
+      expect(Math.max(...counts)).toBeLessThanOrEqual(100); reads.mockRestore();
+      await quiet(1000);
+      expect(await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.companyId, companyId))).toHaveLength(105);
+      await vi.advanceTimersByTimeAsync(deadline - Date.now());
+      await vi.waitFor(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(idleWorkSnapshot().active).toBe(0);
+        expect(coordinator!.nextWakeAt()).toBeNull();
+      }, { timeout: 5000 });
+      expect(await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.companyId, companyId))).toHaveLength(0);
+      await quiet();
+    } finally { reads.mockRestore(); }
+  });
+  it("settles a confirmed deletion without reloading the deleted history", async () => {
+    const call = await admission(), service = voiceInboundRetention(db);
+    const reads = vi.spyOn(db, "select");
+    try {
+      await expect(service.check(call.id)).resolves.toBeNull();
+      expect(reads).not.toHaveBeenCalled();
+    } finally { reads.mockRestore(); }
+    expect(await row(call.id)).toBeUndefined();
+  });
   it("leaves configured idle quiet and reacts to the first committed history", async () => {
     await start(); await flush(); expect(coordinator!.nextWakeAt()).toBeNull(); await quiet();
     const call = await admission(); await flush(); expect(await row(call.id)).toBeUndefined();
@@ -160,12 +211,22 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(coordinator!.nextWakeAt()).toBeNull(); await quiet();
   });
   it("pages through more than one batch of history across companies", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: false });
     for (let i = 0; i < 104; i++) await admission();
-    const other = await fixture(); const last = await admission({ companyId: other.companyId, endpointId: other.endpointId });
+    const other = await fixture(); const last = await admission({ id: "ffffffff-ffff-4fff-bfff-ffffffffffff", companyId: other.companyId, endpointId: other.endpointId });
     const service = await start();
-    expect(await row(last.id)).toBeUndefined();
-    await vi.waitFor(async () => { await vi.advanceTimersByTimeAsync(1000); expect(await service.load()).toHaveLength(0); }, { timeout: 5000 });
-    await flush(); await quiet();
+    expect(await row(last.id)).toBeDefined();
+    expect(await service.load()).toHaveLength(80);
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.waitFor(async () => expect(await row(last.id)).toBeUndefined(), { interval: 0, timeout: 5000 });
+    for (let pass = 0; pass < 20; pass++) {
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.waitFor(() => expect(coordinator!.nextWakeAt() !== null || idleWorkSnapshot().active === 0).toBe(true), { interval: 0, timeout: 5000 });
+    }
+    await flush();
+    expect(await service.load()).toHaveLength(0);
+    expect(await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.companyId, companyId))).toHaveLength(0);
+    expect(await row(last.id)).toBeUndefined(); await quiet();
   });
   it("retains failed deletion for a bounded retry and then becomes quiet", async () => {
     const call = await admission();

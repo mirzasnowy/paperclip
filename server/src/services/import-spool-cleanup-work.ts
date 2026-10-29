@@ -15,8 +15,8 @@ export function registerImportSpoolCleanupWork(db: Db, coordinator: ReturnType<t
     const spool = await readImportTransferSpool(db, root, id);
     if (!spool) return null;
     const dueAt = importTransferSpoolDeadline(spool);
-    // Imports precede company creation; this label is only a fair-batch group,
-    // never an authorization scope. Orphans share the instance cleanup group.
+
+
     return dueAt === null ? null : { id, companyId: spool.run?.companyId ?? "import-spools-without-company", dueAt };
   }
   const worker = registerScopedDeadlineWork(coordinator, {
@@ -35,9 +35,9 @@ export function registerImportSpoolCleanupWork(db: Db, coordinator: ReturnType<t
           const entry = await read(id);
           if (entry) entries.push(entry);
         } catch {
-          // The directory is known, but its eligibility is unresolved. Let
-          // check retry this item with the shared per-entry backoff instead
-          // of discarding healthy discoveries and blocking the whole root.
+
+
+
           entries.push({ id, companyId: "import-spools-without-company", dueAt: Date.now() });
         }
       }

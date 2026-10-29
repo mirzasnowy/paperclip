@@ -130,9 +130,9 @@ async function getRun(db: Db, runId: string): Promise<CompanyTransferRunRow | nu
   return record ? rowFromRecord(record) : null;
 }
 
-// Keep notification/transaction ownership here, including nested callers. The
-// spool worker checks the hinted directory before reading the ledger, so export
-// writes and declarations with no uploaded files do not cause cleanup SQL.
+
+
+
 async function writeTransferRun<T>(db: Db, runId: string, write: (tx: Db) => Promise<T>): Promise<T> {
   return db.transaction(async tx => {
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.importSpoolCleanup, runId);
@@ -270,9 +270,9 @@ export const companyTransferRunService = {
       .where(eq(companyTransferRuns.id, runId)));
   },
 
-  /** Refresh activity before writing verified part bytes. The guarded update
-   * serializes with idle cancellation without recording a receipt for a file
-   * that may still fail to write. It cannot revive a cancelled or applying run. */
+
+
+
   async notePartUploadActivity(db: Db, runId: string): Promise<void> {
     await writeTransferRun(db, runId, async tx => tx.update(companyTransferRuns)
       .set({ updatedAt: new Date() })

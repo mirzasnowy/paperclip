@@ -26,17 +26,13 @@ export function createScheduledRetryCancellationRecovery(db: Db, cancelRun: (
       cursor ? gt(heartbeatRuns.id, cursor) : undefined,
     )).orderBy(asc(heartbeatRuns.id)).limit(100);
   }
-  async function load(scope: ScheduledRetryCancellationScope | undefined, admitted: () => boolean) {
-    const entries: Deadline[] = [];
-    let cursor: string | undefined;
-    while (admitted()) {
-      const rows = await candidates(scope, cursor);
-      for (const row of rows) if (readRunCancellation(row.result)?.expected)
-        entries.push({ id: row.id, companyId: row.companyId, dueAt: 0 });
-      if (rows.length < 100) return entries;
-      cursor = rows[rows.length - 1].id;
-    }
-    throw new Error("Scheduled retry cancellation reconstruction stopped");
+  async function load(scope: ScheduledRetryCancellationScope | undefined, admitted: () => boolean, cursor?: string) {
+    if (!admitted()) throw new Error("Scheduled retry cancellation reconstruction stopped");
+    const rows = await candidates(scope, cursor);
+    if (!admitted()) throw new Error("Scheduled retry cancellation reconstruction stopped");
+    const entries: Deadline[] = rows.filter(row => readRunCancellation(row.result)?.expected)
+      .map(row => ({ id: row.id, companyId: row.companyId, dueAt: 0 }));
+    return { rows: entries, complete: rows.length < 100, cursor: rows.at(-1)?.id };
   }
   async function check(entry: Deadline, admitted: () => boolean) {
     const [run] = await candidates({ companyId: entry.companyId, runId: entry.id }, undefined, true);
@@ -52,22 +48,36 @@ export function createScheduledRetryCancellationRecovery(db: Db, cancelRun: (
     return null;
   }
   async function sweep() {
-    const entries = await load(undefined, () => true);
-    for (const entry of entries.slice(0, 20)) {
-      try { await check(entry, () => true); }
-      catch (error) { logger.warn({ err: error, runId: entry.id }, "failed to finish interrupted retry cancellation"); }
+    let cursor: string | undefined;
+    let checked = 0;
+    while (checked < 20) {
+      const page = await load(undefined, () => true, cursor);
+      for (const entry of page.rows) {
+        if (checked === 20) break;
+        checked++;
+        try { await check(entry, () => true); }
+        catch (error) { logger.warn({ err: error, runId: entry.id }, "failed to finish interrupted retry cancellation"); }
+      }
+      if (page.complete) break;
+      cursor = page.cursor;
     }
   }
   function register(coordinator: ReturnType<typeof createDeliveryWorkCoordinator>, canRun: () => boolean,
     canRecover: () => Promise<boolean>) {
+    const cursors = new Map<string, string>();
     return registerScopedDeadlineWork(coordinator, {
       queue: DELIVERY_QUEUES.scheduledRetryCancellation,
       batchSize: 20,
       decodeScope: (hint: string): ScheduledRetryCancellationScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
       matches: (entry: Deadline, scope?: ScheduledRetryCancellationScope) => !scope ||
         entry.companyId === scope.companyId && (!scope.runId || entry.id === scope.runId),
-      load: async (scope, signal) => await canRecover()
-        ? load(scope, () => canRun() && !signal?.aborted) : [],
+      load: async (scope, signal) => {
+        const key = scope ? `${scope.companyId}:${scope.runId ?? "*"}` : "*";
+        if (!await canRecover()) { cursors.delete(key); return []; }
+        const page = await load(scope, () => canRun() && !signal?.aborted, cursors.get(key));
+        if (page.complete) cursors.delete(key); else cursors.set(key, page.cursor!);
+        return { rows: page.rows, complete: page.complete };
+      },
       check: async (entry, signal) => await canRecover()
         ? check(entry, () => canRun() && !signal?.aborted) : null,
     }, canRun);

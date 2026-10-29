@@ -150,3 +150,41 @@ stop method that is not exposed; it was removed before final verification. The
 combined affected coverage is 228 passing tests, with no skips in the final
 complete suite results. Server typechecking and build pass. These are local
 results; current-head CI and remaining reviews are separate gates.
+
+## October 29 master reconciliation and current acceptance
+
+This existing issue-monitor slice was reconciled with the accepted routine parent
+and its landed prerequisites through ordinary merges. Two conflicts required
+explicit composition: monitor consumption keeps its new transaction and intent
+while preserving master's `triggered` result after an already-admitted check loses
+the replacement consumption fence; issue deletion keeps the scoped decision-target
+removal notifier together with the new monitor intent. All remaining paths match
+the automatic merge, and the package tree is identical to the qualified parent.
+
+Current source `c24aadfc91e9394d73c799f9e05fc67202160557` passed **1,233 cases
+in 35 complete files**, without skips, in 458.16 seconds. Coverage includes
+heartbeat scheduling and monitor admission, scheduled deadline queries, retained
+routine lifecycles, native monitor preservation and run projection, execution
+control, issue and tree services, conversation producers, budget/company changes,
+startup, and the shared deadline helper's plugin, credential expiry, tool review,
+decision, retention, custom-image and Grok consumers. Database build, production
+server typechecking/build, module boundaries, migration order and Runner profile
+identity pass. All selected hashes and temporary external-fixture imports were
+restored exactly. Twenty-four fresh PostgreSQL 17 schemas, plus helper-owned
+per-file databases, applied all 412 journal entries through index 413.
+
+The old remote head's CI failures are preserved separately from current acceptance.
+Its delegated Slack rate assertion admitted an unexpected second send. A minute
+boundary is consistent with the old live-clock fixture; the precise historical
+cause is not established. The inherited parent fixture now freezes Date for all
+rate variants, retaining the same denial and send-count assertions, and is byte
+identical to merged #17835. The old Runner fixture also failed its initial
+provider-drain deadline, before its deliberate timeout stage. Current packages
+are byte identical to merged #17835's qualified profile-80 tree. These inherited
+changes and local passes do not waive fresh final-head CI or security gates.
+
+The final routine-parent publication changed only its audit; all production trees
+and these 35 test hashes remain identical to accepted source. Publication still
+requires adopting the actual merged routine squash and new exact-head review.
+No full local repository-suite, live provider, external alarm delivery, measured
+instance/database suspension, production load or fleet cost claim is made.

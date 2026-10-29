@@ -274,3 +274,149 @@ cases plus two worker cases: quiet pending presentation, rolled-back settlement,
 committed passive or missing-response settlement, and final drain. The fixture
 uses real PostgreSQL with controlled GitHub responses. The new cases must pass
 before this integration is published; source merging alone is not acceptance.
+
+
+## Current local preparation — October 28
+
+Normal integration `ed1c9fcfa10d492bb56ea2e23cd97cddeebe9d5b` adopts the prepared
+GitHub acknowledgement parent `3fef8f08c0337301706bc6348a05bb2a2fc50679`.
+Every original domain/schema edit and unrelated parent blob is preserved.
+The only conflict is a historical snapshot rename/delete; it retains the current
+parent's 0396 snapshot byte for byte. The parent migration/client state is
+identical before this slice's index is regenerated. Proof:
+`/tmp/sleep35-parent-composition-proof.json`.
+
+`706cb6dbf58bf42a5f611319994c2c3907c9a80f` regenerates the original terminal
+work index as `0401_yummy_ultimates.sql`. Its concurrent/idempotent index SQL is
+identical after whitespace normalization to the old unlanded 0395 definition.
+All prior SQL/journal entries and retained snapshot bytes remain unchanged.
+Canonical generation keeps the five newest snapshots, 0397–0401. The existing
+top-level migration registry uses the new filename.
+
+The exact parent-to-head migration-order gate, database build and production
+server typechecking pass on that revision. Commands/receipts:
+`/tmp/sleep35-current-compile-command.json` and
+`/tmp/sleep35-current-{order,db-build,types}.*`.
+These are compilation/history checks, not current lifecycle or PostgreSQL
+migration-application acceptance. No current test count is claimed here.
+The earlier lifecycle, quietness, provider, failure-isolation and presentation
+results above retain their original revision scopes.
+
+This remains local and unpublished while preceding PRs finish their required
+gates and merges. Actual landed-parent reconciliation, relevant functional
+acceptance, fresh exact-head CI and Greptile 5/5 without actionable findings are
+still required. No full local repository, live provider or deployed sleep result
+is inferred from this preparation. The following audit-only commit leaves the
+compiled source and migration bytes unchanged.
+
+
+## Current prepared-parent functional acceptance
+
+Normal integration `aa72f32641b2e2c680342cd49477272349aca9db` adopts published
+GitHub acknowledgement parent `09ca00b9f029838434ec042cda691345d67b493e`.
+The complete original owned binary patch and all inherited master changes are
+preserved. Proof: `/tmp/sleep35-published-parent-composition-proof.json`.
+
+**304 distinct cases pass:** all 253 GitHub agent-review workflow cases (1,485
+other chat cases skipped), all 30 heartbeat completion cases, all eight cases
+across the complete real/unit issue-tree control suites, and all 13 startup
+cases. Database build, server typechecking/build, module boundaries and three
+fresh PostgreSQL migrations through 0401 pass. The control suite is explicitly
+premigrated, preserving its original setup budget. Commands and actual fixtures:
+`/tmp/sleep35-current-acceptance-command.json`; receipts/logs:
+`/tmp/sleep35-current-{db-build,types,build,boundaries,github,completion,tree,startup}.*`
+and `/tmp/sleep35-current-migrate-{github,completion,tree}.*`.
+These results retain that prepared-parent revision scope.
+
+
+## Acceptance on the landed GitHub parent and current master
+
+GitHub acknowledgements #17656 landed at
+`ba5bba86dcdde32b14d4d7dec1b51898e5f6f22d`. Its entire tree is byte-identical
+to the published parent `09ca00b9f029838434ec042cda691345d67b493e`.
+Master then added the queued-comment consumption optimization #18021.
+Normal two-parent integration `3c8339a541bf68bc9957b9d5a8df80d3a7c3452d`
+adopts master `52b86c2032a189b0ea259c5b0cb7158b07ef788c`. It preserves the full
+24-path owned binary patch and all five new master paths. Both normal parents
+and the exact tree are checked, including historical squash-ancestry resolution
+against the verified published parent. Proof:
+`/tmp/sleep35-landed-parent-publication-proof.json`. No force push or rebase occurs.
+
+**74 distinct current cases pass:** all 17 terminal-response lifecycle/producer
+cases (1,721 other chat cases skipped), all six queued-comment consumption
+regressions for the new upstream optimization, all 30 heartbeat completion cases,
+all eight real/unit issue-tree control cases and all 13 startup cases. Database
+build, server typechecking/build, module boundaries, four fresh PostgreSQL
+migrations through 0401 and the current-master migration-order gate pass.
+The repeated 68 cases are not added to the earlier 304-case matrix; its full
+GitHub group remains evidence at its stated revision.
+
+The terminal cases cover finalized-history quiet, deleted Board sources, pending
+presentation and passive results, outer rollback/commit, paused/new runs,
+restart/drain/standby, native identity, lease waits, unrelated full-page history,
+uncertain publication ownership and tree/workspace/exhausted-recovery producers.
+The six new upstream tests cover bounded repeated reads and preserve saved-comment
+JSON, identity, scope, author and cancellation semantics in the execution blocker.
+
+A populated 0400 database upgrades to 0401 with all 399 prior migration receipts
+identical and exactly one new receipt. Replay adds none. The terminal index is
+valid and ready in both fresh and upgraded databases. The original SQL index
+definition is unchanged apart from generation whitespace and filename references.
+All prior SQL/journal entries and retained snapshot bytes remain preserved;
+canonical retention keeps snapshots 0397–0401. Receipt:
+`/tmp/sleep35-upgrade-replay-receipt.json`.
+
+Actual commands, revision and fixtures:
+`/tmp/sleep35-landed-acceptance-command.json`. Logs/receipts:
+`/tmp/sleep35-landed-{db-build,types,build,boundaries,github,queued,completion,tree,startup}.*`,
+`/tmp/sleep35-landed-migrate-{github,queued,completion,tree}.*`,
+`/tmp/sleep35-landed-migration-order.*`, and `/tmp/sleep35-upgrade-replay.*`.
+The following audit-only follow-up leaves all owned source/test/migration hashes
+unchanged, in `/tmp/sleep35-landed-tested-source-sha256.json`.
+Original producer, quietness, failure-isolation, skipped-suite and presentation
+results above retain their original scopes. Fresh exact-head CI and Greptile 5/5
+with no actionable findings remain required. This does not establish a full
+local repository result, live GitHub delivery or physical host/database sleep.
+
+
+## CI: native presentation startup observation
+
+PR #17680 head `40f84082526d6ba405f206475c919c3b4b67ec4c` fails chat shard
+1 in run 40814818307, job 123253388098. The passive native-presentation case
+expires its initial default one-second idle poll with no deadline and two active
+tracked operations. The aggregate verify check fails because of that shard.
+This is retained as a real CI failure; no unchanged-head retry was issued.
+
+The scoped worker's minimum pass interval is also one second. The initial poll
+was added after the earlier coalescing correction documented above and still
+used the default, while neighboring settlement observations use five seconds.
+The unchanged local focused pair passes, so there is no claim of an unmodified
+local reproduction of CI scheduling.
+
+A temporary controlled fixture commits a real milestone hint during the initial
+registered run and holds the second registered run attempt for 600 ms after
+delegating to the existing implementation. That attempt may defer at the
+unchanged one-second gate, retaining a coalesced follow-up. Both old observations
+fail at the original one-second bound. With the identical probe, both pass when
+the initial observation uses the existing five-second bound. The controlled
+failures have a pending deadline and one active token; CI saw no deadline and
+two active tokens. This proves that the observation window cannot reliably fit
+allowed startup follow-up, not the exact unrecorded CI token-owner timeline.
+
+The probe is removed byte for byte before final acceptance. The permanent
+change is one argument on the initial poll. It still requires a null deadline
+and zero active work, then proves two virtual minutes with zero SQL, transaction
+or provider writes. Rollback, committed settlement and final drain assertions
+are unchanged. Production code, scheduler cadence, retry/business deadlines and
+the overall test budget are unchanged. Only this eventual-startup observation
+uses the established five-second bound.
+
+The no-probe focused pair passes. The complete named GitHub agent-review
+workflow then passes all **274 selected cases** in 232.06 seconds on fresh
+PostgreSQL 17. The other 1507 cases in the large integration file are outside
+that named selection, not counted as acceptance. Five dedicated fresh 0409
+fixtures isolate baseline, controlled red, controlled green, focused and workflow
+runs. No embedded CI-environment equivalence is claimed. The source file hash
+for permanent acceptance is
+`d0dbef76741f03862dfef0a42338f97d5ea7a9f36d4b465c7538a5eaacd65b2c`.
+Fresh published-head CI and review remain required.
