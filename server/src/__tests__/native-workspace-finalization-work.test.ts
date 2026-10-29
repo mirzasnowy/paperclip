@@ -142,6 +142,26 @@ describe("workspace finalization scheduled lifecycle", () => {
     worker!.stop(); await coordinator!.stop(); await start(); await flush(); await quiet();
     expect(await successful(binding.runId)).toHaveLength(1);
   });
+  it("ignores routine company-only finalization hints and still wakes on accepted work", async () => {
+    await start(); await flush(); await quiet();
+    const previous = db.$client.options.debug;
+    const queries: string[] = [];
+    db.$client.options.debug = (_id, query) => {
+      if (/from\s+"native_run_finalizations"/i.test(query)) queries.push(query);
+    };
+    try {
+      for (let index = 0; index < 3; index += 1) {
+        await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, { companyId }); });
+        await flush();
+      }
+      expect(queries).toEqual([]);
+    } finally { db.$client.options.debug = previous; }
+    const binding = await seed();
+    await complete(binding); await flush();
+    expect(await successful(binding.runId)).toHaveLength(1);
+    await quiet();
+  });
+
   it("lets result reconciliation use a successful barrier despite a later stale failure", async () => {
     const binding = await seed(); await complete(binding);
     await db.insert(workspaceOperations).values({ companyId, heartbeatRunId: binding.runId, issueId: binding.issueId,
