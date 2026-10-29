@@ -55,8 +55,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const svc = service();
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => !draining, canReconcile: () => true,
       onError: error => errors.push(error) });
-    // Exercise the real routine service and shared worker without registering
-    // unrelated monitor stubs. Combined queue wiring has a separate suite.
+
+
     const worker = registerDeadlineWork(coordinator, DELIVERY_QUEUES.routineSchedules, {
       retryMs: 30_000,
       canRun: () => !draining,
@@ -109,7 +109,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("reactivates from the first trigger, replaces earlier deadlines, and cancels disabled or archived schedules", async () => {
     await start(); await quiet();
     const routine = await create();
-    await quiet(); // An active routine without a schedule owes no timed work.
+    await quiet();
     const created = await service().createTrigger(routine.id, { kind: "schedule", cronExpression: "0 0 * * *", timezone: "UTC" }, {});
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(created.trigger.nextRunAt!.getTime()));
     const updated = await service().updateTrigger(created.trigger.id, { cronExpression: "0 * * * *" }, {});
@@ -264,8 +264,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await start(); await settled();
     expect(coordinator!.nextWakeAt()).not.toBeNull();
     if (operation === "remove") {
-      // This suite has no agent lifecycle driver. Seed its completed termination
-      // before exercising the real company deletion transaction and its signal.
+
+
       await db.update(agents).set({ status: "terminated", lifecycleState: "terminated" }).where(eq(agents.id, agentId));
     }
     await companyService(db)[operation](companyId);

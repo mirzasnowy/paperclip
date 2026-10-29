@@ -63,8 +63,8 @@ function changed(spoolRoot: string, runId: string) {
   for (const listener of spoolListeners) listener(path.resolve(spoolRoot), runId);
 }
 
-/** Atomic part write: temp file in the same dir, then rename over the target.
- * Run-backed uploads record ledger activity before calling this filesystem owner. */
+
+
 export async function writeImportTransferPart(
   spoolRoot: string,
   runId: string,
@@ -78,7 +78,7 @@ export async function writeImportTransferPart(
     await fs.writeFile(tempPath, bytes);
     await fs.rename(tempPath, target);
   } finally {
-    // A partial write can leave a directory even when no ledger update follows.
+
     changed(spoolRoot, runId);
   }
 }
@@ -134,7 +134,7 @@ export async function removeImportTransferPart(
   finally { changed(spoolRoot, runId); }
 }
 
-/** Only a missing directory proves that no filesystem work remains. */
+
 export async function listImportTransferSpools(spoolRoot: string): Promise<string[]> {
   try {
     return (await fs.readdir(spoolRoot, { withFileTypes: true }))
@@ -153,7 +153,7 @@ export async function readImportTransferSpool(db: Db, spoolRoot: string, runId: 
     throw error;
   }
   if (!stat.isDirectory()) return null;
-  // Database failures must never turn live uploads into apparent orphans.
+
   const run = await companyTransferRunService.getCleanupState(db, runId);
   return { run, mtimeMs: stat.mtimeMs };
 }
@@ -165,13 +165,13 @@ export function importTransferSpoolDeadline(spool: Spool, maxAgeMs = IMPORT_TRAN
   if (spool.run.status === "completed" || spool.run.status === "cancelled") return 0;
   if (spool.run.status === "pending" || spool.run.status === "running")
     return spool.run.updatedAt.getTime() + maxAgeMs + 1;
-  // Failed parts remain reusable. An applying run has a live execution owner.
+
   return null;
 }
 
-/** Revalidate and atomically cancel old open uploads before deleting their files.
- * A concurrent resume/upload makes the existing updatedAt guard miss. Failed
- * runs remain claimable by apply, so cleanup must never use failed as its claim. */
+
+
+
 export async function settleImportTransferSpool(
   db: Db, spoolRoot: string, runId: string,
   options: { maxAgeMs?: number; now?: Date } = {},
@@ -191,7 +191,7 @@ export async function settleImportTransferSpool(
   return true;
 }
 
-/** Explicit maintenance entry point; normal operation uses per-spool deadlines. */
+
 export async function sweepAbandonedImportTransferSpools(
   db: Db, spoolRoot: string, options: { maxAgeMs?: number; now?: Date } = {},
 ): Promise<{ swept: number }> {

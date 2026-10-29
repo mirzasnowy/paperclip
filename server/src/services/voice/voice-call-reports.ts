@@ -20,29 +20,45 @@ const eligible = (now: number) => and(inArray(chatVoiceSessions.state, ["ended",
 /** Reports may change for 24 hours after a call. Available is a presentation
  * state, not a promise of immutable provider data. Keep that finite obligation. */
 export function voiceCallReports(db: Db, fetchReport: (session: VoiceSessionRow) => Promise<Report>) {
+  type Cursor = { id: string; endedAt: string };
+  const cursors = new Map<string, Cursor>();
+  async function page(scope?: VoiceRecoveryScope, cursor?: Cursor, signal?: AbortSignal) {
+    signal?.throwIfAborted();
+    const rows = await db.select({ id: chatVoiceSessions.id, companyId: chatVoiceSessions.companyId,
+      endpointId: chatVoiceSessions.endpointId, connectionId: chatEndpoints.connectionId,
+      endedAt: sql<string>`${chatVoiceSessions.endedAt}::text`,
+      dueAt: sql<string>`least(coalesce(ceil(extract(epoch from ${chatVoiceReports.nextCheckAt}) * 1000), 0), floor(extract(epoch from ${chatVoiceSessions.endedAt}) * 1000) + ${WINDOW_MS} + 1)`,
+    }).from(chatVoiceSessions)
+      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.companyId, chatVoiceSessions.companyId)))
+      .leftJoin(chatVoiceReports, and(eq(chatVoiceReports.sessionId, chatVoiceSessions.id), eq(chatVoiceReports.companyId, chatVoiceSessions.companyId)))
+      .where(and(eligible(Date.now()),
+        scope?.kind === "session" ? eq(chatVoiceSessions.id, scope.id) : undefined,
+        scope?.kind === "endpoint" ? eq(chatVoiceSessions.endpointId, scope.id) : undefined,
+        scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
+        scope?.kind === "company" ? eq(chatVoiceSessions.companyId, scope.id) : undefined,
+        cursor ? sql`(${chatVoiceSessions.endedAt}, ${chatVoiceSessions.id}) > (${cursor.endedAt}::timestamptz, ${cursor.id}::uuid)` : undefined))
+      .orderBy(chatVoiceSessions.endedAt, chatVoiceSessions.id).limit(100);
+    signal?.throwIfAborted();
+    return rows;
+  }
+  function entries(rows: Awaited<ReturnType<typeof page>>): Entry[] {
+    return rows.map(({ endedAt: _cursor, ...row }) => ({ ...row, dueAt: Number(row.dueAt) }));
+  }
   async function load(scope?: VoiceRecoveryScope, signal?: AbortSignal): Promise<Entry[]> {
-    const entries: Entry[] = []; let cursor: { id: string; endedAt: string } | undefined;
+    const result: Entry[] = []; let cursor: Cursor | undefined;
     for (;;) {
-      signal?.throwIfAborted();
-      const rows = await db.select({ id: chatVoiceSessions.id, companyId: chatVoiceSessions.companyId,
-        endpointId: chatVoiceSessions.endpointId, connectionId: chatEndpoints.connectionId,
-        endedAt: sql<string>`${chatVoiceSessions.endedAt}::text`,
-        dueAt: sql<string>`least(coalesce(ceil(extract(epoch from ${chatVoiceReports.nextCheckAt}) * 1000), 0), floor(extract(epoch from ${chatVoiceSessions.endedAt}) * 1000) + ${WINDOW_MS} + 1)`,
-      }).from(chatVoiceSessions)
-        .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.companyId, chatVoiceSessions.companyId)))
-        .leftJoin(chatVoiceReports, and(eq(chatVoiceReports.sessionId, chatVoiceSessions.id), eq(chatVoiceReports.companyId, chatVoiceSessions.companyId)))
-        .where(and(eligible(Date.now()),
-          scope?.kind === "session" ? eq(chatVoiceSessions.id, scope.id) : undefined,
-          scope?.kind === "endpoint" ? eq(chatVoiceSessions.endpointId, scope.id) : undefined,
-          scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
-          scope?.kind === "company" ? eq(chatVoiceSessions.companyId, scope.id) : undefined,
-          cursor ? sql`(${chatVoiceSessions.endedAt}, ${chatVoiceSessions.id}) > (${cursor.endedAt}::timestamptz, ${cursor.id}::uuid)` : undefined))
-        .orderBy(chatVoiceSessions.endedAt, chatVoiceSessions.id).limit(100);
-      entries.push(...rows.map(({ endedAt: _cursor, ...row }) => ({ ...row, dueAt: Number(row.dueAt) })));
-      if (rows.length < 100) return entries;
-      // Keep PostgreSQL precision; JS Date truncation can repeat a page.
+      const rows = await page(scope, cursor, signal);
+      result.push(...entries(rows));
+      if (rows.length < 100) return result;
       cursor = rows[rows.length - 1];
     }
+  }
+  async function refresh(scope?: VoiceRecoveryScope, signal?: AbortSignal) {
+    const key = scope ? `${scope.kind}:${scope.id}` : "*";
+    const rows = await page(scope, cursors.get(key), signal), result = entries(rows), complete = rows.length < 100;
+    signal?.throwIfAborted();
+    if (complete) cursors.delete(key); else cursors.set(key, rows[rows.length - 1]);
+    return { rows: result, complete };
   }
   async function projectTranscript(session: VoiceSessionRow) {
     // Keep both actual spoken sides on this public call's own task. This
@@ -120,9 +136,10 @@ export function voiceCallReports(db: Db, fetchReport: (session: VoiceSessionRow)
     return rows.length;
   }
   function register(coordinator: ReturnType<typeof createDeliveryWorkCoordinator>, canRun: () => boolean) {
+    cursors.clear();
     return registerScopedDeadlineWork(coordinator, { queue: DELIVERY_QUEUES.voiceReports, decodeScope: voiceRecoveryScope,
       matches: (entry, scope) => !scope || (scope.kind === "session" ? entry.id : scope.kind === "endpoint" ? entry.endpointId : scope.kind === "connection" ? entry.connectionId : entry.companyId) === scope.id,
-      load, check: (entry, signal) => check(entry.id, signal),
+      load: refresh, check: (entry, signal) => check(entry.id, signal),
     }, canRun);
   }
   return { load, check, reconcile, register };

@@ -862,7 +862,7 @@ export function createChatPublicationWorker(db: Db, options: PublicationWorkerOp
                 await credentialLease.assertOwned(tx);
                 const committedAt = new Date();
                 await notifyChatPublicationWork(tx, publication);
-                await notifyVoicePublication(tx, authorizationClaim.endpoint);
+                await notifyVoicePublication(tx, authorizationClaim.endpoint, publication.conversationId);
                 const [completedPublication] = await tx
                   .update(chatPublications)
                   .set({

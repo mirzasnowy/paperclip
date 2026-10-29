@@ -177,8 +177,8 @@ describe.skipIf(!support.supported)("released native monitor results", () => {
     try {
       await f.finalize();
       const deadline = new Date(f.nextCheckAt).getTime();
-      // Multiple producer transactions may notify. At least one committed wake
-      // must expose the saved deadline once finalization stops blocking it.
+
+
       expect(await Promise.all(observedDeadlines)).toContain(deadline);
       expect(await scheduler.nextIssueMonitorAt()).toBe(deadline);
       expect(await hasPendingRunCleanup(db, f.companyId, f.runId)).toBe(false);

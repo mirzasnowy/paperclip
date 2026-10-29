@@ -309,8 +309,8 @@ export async function attemptNativeWorkspaceFinalization(input: {
   return owned.acquired ? owned.value : { kind: "waiting", reason: owned.reason } as const;
 }
 
-// Existing direct reconciliation callers consume the operation; the deadline
-// worker also needs to distinguish ownership waits from durable retry deadlines.
+
+
 export async function resumeNativeWorkspaceFinalization(input: Parameters<typeof attemptNativeWorkspaceFinalization>[0]) {
   const result = await attemptNativeWorkspaceFinalization(input);
   return result.kind === "completed" ? result.operation : null;

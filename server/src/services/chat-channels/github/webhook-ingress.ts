@@ -690,8 +690,13 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
     actionId: string,
     propagateProcessingFailure = false,
   ): Promise<Response | null> {
-    let action = await db
-      .select()
+    const candidate = await db
+      .select({
+        id: chatActions.id,
+        status: chatActions.status,
+        result: chatActions.result,
+        updatedAt: chatActions.updatedAt,
+      })
       .from(chatActions)
       .where(
         and(
@@ -700,57 +705,38 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
         ),
       )
       .then((rows) => rows[0] ?? null);
-    if (!action) return null;
-    if (["processed", "cancelled"].includes(action.status))
+    if (!candidate) return null;
+    if (["processed", "cancelled"].includes(candidate.status))
       return githubIngressAcceptedResponse();
-    if (action.status === "failed" && action.result?.retryable !== true)
+    if (candidate.status === "failed" && candidate.result?.retryable !== true)
       return githubIngressAcceptedResponse();
-    const payload = githubWebhookIngressPayload(action.payload);
-    if (!payload) {
-      await db.transaction(async (tx) => {
-        await notifyChatActionWork(tx, "github_webhook_ingress");
-        return tx
-          .update(chatActions)
-          .set({
-            status: "failed",
-            payload: {},
-            result: {
-              code: "github_webhook_ingress_payload_invalid",
-              retryable: false,
-            },
-            updatedAt: new Date(),
-          })
-          .where(eq(chatActions.id, action.id));
-      });
-      return githubIngressAcceptedResponse();
-    }
     const now = new Date();
     const staleBefore = new Date(now.getTime() - PROVIDER_EFFECT_STALE_MS);
-    if (action.status === "processing" && action.updatedAt > staleBefore) {
+    if (candidate.status === "processing" && candidate.updatedAt > staleBefore) {
       return null;
     }
-    if (action.status === "failed") {
+    if (candidate.status === "failed") {
       const retryAt =
-        typeof action.result?.retryAt === "string"
-          ? new Date(action.result.retryAt)
+        typeof candidate.result?.retryAt === "string"
+          ? new Date(candidate.result.retryAt)
           : null;
       if (retryAt && retryAt > now) return null;
-    } else if (action.status !== "received" && action.status !== "processing") {
+    } else if (candidate.status !== "received" && candidate.status !== "processing") {
       return null;
     }
     const attempts =
-      (typeof action.result?.attempts === "number"
-        ? action.result.attempts
+      (typeof candidate.result?.attempts === "number"
+        ? candidate.result.attempts
         : 0) + 1;
     const previousAttempts = attempts - 1;
     const claimGuard =
-      action.status === "processing"
+      candidate.status === "processing"
         ? and(
             eq(chatActions.status, "processing"),
             lte(chatActions.updatedAt, staleBefore),
             sql`coalesce((${chatActions.result}->>'attempts')::int, 0) = ${previousAttempts}`,
           )
-        : action.status === "failed"
+        : candidate.status === "failed"
           ? and(
               eq(chatActions.status, "failed"),
               sql`coalesce((${chatActions.result}->>'attempts')::int, 0) = ${previousAttempts}`,
@@ -767,15 +753,48 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
         })
         .where(
           and(
-            eq(chatActions.id, action.id),
+            eq(chatActions.id, candidate.id),
             eq(chatActions.kind, "github_webhook_ingress"),
             claimGuard,
           ),
         )
-        .returning();
+        .returning({
+          id: chatActions.id,
+          endpointId: chatActions.endpointId,
+          payload: chatActions.payload,
+        });
     });
     if (!claimed) return null;
-    action = claimed;
+    const action = claimed;
+
+    // Only the successful claimant needs the replay body. Validate the row
+    // returned by the claim so a competing retry cannot replace it underneath us.
+    const payload = githubWebhookIngressPayload(action.payload);
+    if (!payload) {
+      await db.transaction(async (tx) => {
+        await notifyChatActionWork(tx, "github_webhook_ingress");
+        return tx
+          .update(chatActions)
+          .set({
+            status: "failed",
+            payload: {},
+            result: {
+              code: "github_webhook_ingress_payload_invalid",
+              retryable: false,
+            },
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(chatActions.id, action.id),
+              eq(chatActions.kind, "github_webhook_ingress"),
+              eq(chatActions.status, "processing"),
+              sql`(${chatActions.result}->>'attempts')::int = ${attempts}`,
+            ),
+          );
+      });
+      return githubIngressAcceptedResponse();
+    }
 
     const record = await endpointRecord(action.endpointId);
     if (
@@ -1233,9 +1252,9 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
           appToken,
           cursor,
         });
-        // GitHub's official recovery recipe uses newest-first pagination
-        // and stops at the age floor. Reject observed ordering drift rather
-        // than assuming unseen pages cannot contain a successful sibling.
+
+
+
         for (const attempt of result.deliveries) {
           const timestamp = Date.parse(attempt.deliveredAt);
           if (timestamp > previousTimestamp)
@@ -1250,8 +1269,8 @@ export function createGitHubWebhookIngress(db: Db, options: GitHubWebhookIngress
         cursor = result.nextCursor;
         truncated = page === 2;
       }
-      // All pages in this time window are needed to rule out a successful
-      // sibling; do not act on a partial window after hitting the work cap.
+
+
       if (truncated) {
         outcome = "history_limit_reached";
         nextDelay = 5 * 60_000;

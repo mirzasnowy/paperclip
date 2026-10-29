@@ -608,7 +608,7 @@ it.each([
           const observed = blocked.catch((error: unknown) => error);
           let idle = false;
           const idleWait = waitForRetainedRunnerdMaintenanceIdle(copy).then(() => { idle = true; });
-          // A different root has no dependency on this retained callback.
+
           await waitForRetainedRunnerdMaintenanceIdle(join(copy, "unrelated"));
           expect(idle).toBe(false);
           if (interruption === "abort") abort.abort();

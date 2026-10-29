@@ -171,12 +171,12 @@ describe.skipIf(!support.supported)("presentation and ownership PostgreSQL read 
   }
 
   async function repairFixture(patch: Partial<typeof heartbeatRuns.$inferInsert>) {
-    // Recovery locks a committed coordinator before loading the run. Use the
-    // real accepted-result path so these assertions still measure that read.
+
+
     const f = await unpublishedAcceptedReply();
     const [run] = await db.update(heartbeatRuns).set(patch).where(eq(heartbeatRuns.id, f.run.id)).returning();
-    // Keep both projection comparisons on the same state. A retained retry
-    // still reads its narrow run evidence but cannot publish before it is due.
+
+
     await db.update(nativeRunFinalizations).set({ nextAttemptAt: new Date(Date.now() + 60_000) })
       .where(eq(nativeRunFinalizations.runId, run.id));
     return { ...f, run };
