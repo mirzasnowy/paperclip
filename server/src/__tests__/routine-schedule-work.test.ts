@@ -106,7 +106,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("reactivates from the first trigger, replaces earlier deadlines, and cancels disabled or archived schedules", async () => {
     await start(); await quiet();
     const routine = await create();
-    await quiet(); 
+    await quiet();
     const created = await service().createTrigger(routine.id, { kind: "schedule", cronExpression: "0 0 * * *", timezone: "UTC" }, {});
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(created.trigger.nextRunAt!.getTime()));
     const updated = await service().updateTrigger(created.trigger.id, { cronExpression: "0 * * * *" }, {});
