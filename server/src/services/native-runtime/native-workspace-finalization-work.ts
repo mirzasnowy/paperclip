@@ -9,8 +9,8 @@ import { attemptNativeWorkspaceFinalization, recordNativeWorkspaceFinalizationFa
 
 type Entry = { id: string; companyId: string; issueId: string; agentId: string; dueAt: number };
 type AttemptInput = Parameters<typeof attemptNativeWorkspaceFinalization>[0];
-// These checks owe evidence for a concrete unfinished export. Operator-only
-// receipts and local writers with a completion signal do not receive this retry.
+
+
 const OWNERSHIP_RECHECK_MS = 30_000;
 
 export function nativeWorkspaceFinalizationWork(db: Db, options: {

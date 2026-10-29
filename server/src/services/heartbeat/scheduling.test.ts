@@ -96,8 +96,8 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
   beforeAll(async () => {
     if (external) await applyPendingMigrations(external);
     else database = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-scheduling-module");
-    // The fake scheduler clock must not expire real PostgreSQL socket timers.
-    // Pool disconnect/reconnect behavior has its own database-client tests.
+
+
     db = createDb(external ?? database.connectionString, { idleTimeoutSeconds: 0, maxLifetimeSeconds: 0, connectTimeoutSeconds: 0 });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => {
@@ -184,7 +184,7 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
       await db.update(issues).set({ monitorNextCheckAt: replacement, monitorWakeRequestedAt: null }).where(eq(issues.id, f.issue.id));
       return admitted;
     });
-    expect(await f.scheduler.tickTimers(now)).toEqual({ checked: 1, enqueued: 0, skipped: 1 });
+    expect(await f.scheduler.tickTimers(now)).toEqual({ checked: 1, enqueued: 1, skipped: 0 });
     expect(await readIssue(f.issue.id)).toMatchObject({ monitorNextCheckAt: replacement, monitorAttemptCount: 0 });
   });
 
@@ -211,6 +211,28 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     }));
     expect(await f.scheduler.tickTimers(now)).toEqual({ checked: 1, enqueued: 0, skipped: 1 });
     expect(await readIssue(f.issue.id)).toMatchObject({ monitorNextCheckAt: null });
+  });
+
+  it("lets a human check a blocked task without resuming automatic checks", async () => {
+    const f = await fixture();
+    await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, f.issue.id));
+    expect(await f.scheduler.tickTimers(now)).toEqual({ checked: 0, enqueued: 0, skipped: 0 });
+    expect(f.deps.enqueueWakeup).not.toHaveBeenCalled();
+    await expect(f.scheduler.triggerIssueMonitor(f.issue.id, { now, actorType: "user", actorId: "board-user" }))
+      .resolves.toMatchObject({ outcome: "triggered" });
+    expect(f.deps.enqueueWakeup).toHaveBeenCalledExactlyOnceWith(f.agent.id, expect.objectContaining({
+      source: "on_demand", requestedByActorType: "user", requestedByActorId: "board-user",
+      issueStateGuard: expect.objectContaining({ statuses: ["blocked"], assigneeAgentId: f.agent.id }),
+    }));
+    expect(await readIssue(f.issue.id)).toMatchObject({ status: "blocked", monitorNextCheckAt: null, monitorAttemptCount: 1 });
+  });
+
+  it.each(["agent", "system"] as const)("does not let a %s check a blocked task", async (actorType) => {
+    const f = await fixture();
+    await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, f.issue.id));
+    await expect(f.scheduler.triggerIssueMonitor(f.issue.id, { now, actorType, actorId: "caller" })).rejects.toThrow();
+    expect(f.deps.enqueueWakeup).not.toHaveBeenCalled();
+    expect(await readIssue(f.issue.id)).toMatchObject({ status: "blocked", monitorNextCheckAt: dueAt, monitorWakeRequestedAt: null });
   });
 
   it("retains monitors after transient admission failures", async () => {
@@ -518,15 +540,15 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
       return workers;
     }
     async function advance(milliseconds: number) {
-      // Let real database I/O finish between scheduler clock edges. One large
-      // clock jump can place a completion receipt after the next retry edge.
+
+
       for (let remaining = milliseconds; remaining > 0; remaining -= 1000) {
         await vi.advanceTimersByTimeAsync(Math.min(1000, remaining));
         await realDelay(5);
       }
     }
     async function quiet() {
-      // Finish the bounded notification batch before measuring passive quiet.
+
       await advance(31_000);
       if (!draining) await vi.waitFor(() => {
         expect(idleWorkSnapshot().active).toBe(0);
@@ -567,8 +589,8 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
       try {
         await ready;
         await advance(31_000);
-        // An unresolved transaction may arm an in-memory reconciliation retry,
-        // but its uncommitted setting must not make the monitor eligible.
+
+
         expect(await heartbeat.nextIssueMonitorAt()).toBeNull();
         expect((await readIssue(f.issue.id)).monitorAttemptCount).toBe(0);
       } finally { release(); }

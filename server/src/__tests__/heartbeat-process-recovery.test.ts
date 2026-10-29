@@ -2800,8 +2800,8 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
             expect(input).toEqual({ companyId, runId });
             await held;
             physicalCleanupFinished = true;
-            // The cleanup operation owns its original callback's lifetime,
-            // including work that outlives a bounded maintenance attempt.
+
+
             if (outcome === "late_callback") await lateCallback;
             if (outcome === "rejected")
               throw new Error("maintenance-test-closed-failure");
@@ -9398,8 +9398,8 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       processGroupId: null,
     });
     mockTerminateLocalService.mockResolvedValueOnce(undefined);
-    // Fail the actual status write, including writes through a transaction.
-    // A root db.update spy misses the transaction-owned lifecycle path.
+
+
     await db.execute(sql.raw(
       `create function test_process_cancellation_fault() returns trigger language plpgsql as $$
        begin

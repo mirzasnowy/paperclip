@@ -9,6 +9,7 @@ export function registerDeadlineWork(
     next: () => Promise<number | null>;
     canRun: () => boolean;
     retryMs: number;
+    continuationMs?: number;
     // Optional batching latency for notifications; already-known deadlines still preempt it.
     notificationCoalesceMs?: number;
     // Optional minimum spacing between scans, including known future deadlines.
@@ -31,17 +32,18 @@ export function registerDeadlineWork(
         return;
       }
       const generation = ++requested;
-      earliest = Date.now() + Math.max(task.retryMs, task.minimumSpacingMs ?? 0);
+      const startedAt = Date.now();
+      earliest = startedAt + Math.max(task.retryMs, task.minimumSpacingMs ?? 0);
       await task.run(signal);
       if (signal.aborted || !task.canRun()) { next = null; return; }
       const deadline = await task.next();
-      // Admission can close while either asynchronous operation is in flight.
-      // Keep the request, but drop a stale local deadline so only the bounded
-      // in-memory retry runs until admission reopens.
+
+
+
       if (!task.canRun()) { next = null; return; }
-      // Future deadlines bypass failure backoff, but retain an explicit scan floor.
-      // Remembering that floor must not arm a timer when no obligation remains.
-      if (deadline === null || deadline > Date.now()) earliest = Date.now() + (task.minimumSpacingMs ?? 0);
+      earliest = deadline === null || deadline > Date.now()
+        ? (task.minimumSpacingMs ? Date.now() + task.minimumSpacingMs : 0)
+        : startedAt + Math.max(task.continuationMs ?? task.retryMs, task.minimumSpacingMs ?? 0);
       next = deadline === null ? null : Math.max(earliest, deadline);
       coalesceUntil = Date.now() + (task.notificationCoalesceMs ?? 0);
       reconciled = generation;

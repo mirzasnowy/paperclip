@@ -19,9 +19,11 @@ type Options = {
 
 export function createFailedRetryNotices(db: Db, options: Options) {
   let manualCursor: FailedRetryNoticeCursor | null = null;
-  async function candidates(limit: number, cursor: FailedRetryNoticeCursor | null, scope?: FailedRetryNoticeScope) {
+  function candidateQuery(cursor: FailedRetryNoticeCursor | null, scope?: FailedRetryNoticeScope) {
     return db.select({ action: chatActions, receipt: agentWakeupRequests,
       cursorCreatedAt: sql<string>`${chatActions.createdAt}::text`,
+      companyId: sql<string>`${chatActions.companyId}`.as("retry_notice_company_id"),
+      issueId: sql<string>`${chatActions.payload}->>'issueId'`.as("retry_notice_issue_id"),
     }).from(chatActions).innerJoin(agentWakeupRequests, and(
       eq(agentWakeupRequests.id, chatActions.id), eq(agentWakeupRequests.companyId, chatActions.companyId),
     )).where(and(
@@ -35,7 +37,10 @@ export function createFailedRetryNotices(db: Db, options: Options) {
         and retry_notice.idempotency_key = 'wake:' || ${chatActions.id}::text || ':' ||
         case when ${agentWakeupRequests.status} = 'deferred_issue_execution' then 'queued' else 'not_started' end || ':' ||
         ${chatActions.endpointId}::text || ':' || ${chatActions.conversationId}::text)`,
-    )).orderBy(asc(chatActions.createdAt), asc(chatActions.id)).limit(limit);
+    ));
+  }
+  async function candidates(limit: number, cursor: FailedRetryNoticeCursor | null, scope?: FailedRetryNoticeScope) {
+    return candidateQuery(cursor, scope).orderBy(asc(chatActions.createdAt), asc(chatActions.id)).limit(limit);
   }
   type Candidates = Awaited<ReturnType<typeof candidates>>;
   function continuation(rows: Candidates, limit: number): FailedRetryNoticeCursor | null {
@@ -84,18 +89,11 @@ export function createFailedRetryNotices(db: Db, options: Options) {
     return (await project(rows)).inserted;
   }
   async function loadFailedRetryNoticeScopes(scope?: FailedRetryNoticeScope, signal?: AbortSignal) {
-    const scopes = new Map<string, { companyId: string; issueId: string }>();
-    let cursor: FailedRetryNoticeCursor | null = null;
-    do {
-      signal?.throwIfAborted();
-      const rows = await candidates(200, cursor, scope);
-      for (const { action } of rows) {
-        const issueId = String(action.payload.issueId);
-        scopes.set(`${action.companyId}:${issueId}`, { companyId: action.companyId, issueId });
-      }
-      cursor = continuation(rows, 200);
-    } while (cursor);
-    return [...scopes.values()];
+    signal?.throwIfAborted();
+    if (scope?.issueId) return [{ companyId: scope.companyId, issueId: scope.issueId }];
+    const candidates = candidateQuery(null, scope).as("failed_retry_notice_candidates");
+    return db.selectDistinct({ companyId: candidates.companyId, issueId: candidates.issueId })
+      .from(candidates);
   }
   async function reconcileFailedRetryNotices(input: {
     scope: FailedRetryNoticeScope; limit?: number; cursor?: FailedRetryNoticeCursor | null; signal?: AbortSignal;

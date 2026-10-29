@@ -164,3 +164,134 @@ cases. Workspace typechecking passes. A fresh final voice/receiver/startup selec
 and the full local test command are running; build/publication/remote gates remain.
 No full local matrix result is claimed from targeted tests. Initial fixture errors
 and the reproduced provider-binding race remain recorded above and in test logs.
+
+## Voice session inventory amplification repair, October 27
+
+The voice branch normally integrates receiver parent #17572 at `841d451164`
+through `f8d7dd2d14`. The initial single-duty scope is 21 files, with no database
+changes. The health-observation routing repair adds one related production path,
+`tool-access/catalog/health.ts`, because an observation must not claim that voice
+configuration changed. The existing routing helper owns receiver and command
+fanout; the voice service owns eligibility and deadline comparison.
+
+A real-API regression with 205 future live calls reproduced 1,230 selected call
+rows across five metadata updates and one health observation. The row count
+measures executed database selects, rather than timer calls or helper invocations.
+After repair these operations read zero call rows, preserve the exact saved next
+deadline, and issue no voice wake for the health-only operation. A separate real
+SDK health case confirms receiver and command topics still settle after commit.
+
+The background path now uses one inventory page of at most 100 lean call headers
+per refresh. Parent state is probed separately, in bounded pages, and unchanged
+state keeps existing deadlines. Unknown or genuinely changed parent state has a
+bounded reconstruction. Foreground reconciliation keeps its complete scan API.
+The worker retains a generation and seen IDs across pages, processes at most 25
+scopes per pass, rechecks call state before provider effects, and preserves failed
+scope/call backoff. It resets partial state when the same service starts a new
+worker. No per-worker table, migration, extra scheduler, or route recovery wrapper
+is introduced.
+
+Real database regressions cover all 205 deadlines after paging and partial-scan
+restart, a new session behind the cursor, a feature change between pages, and
+connection disablement settling all 205 calls. Guarded production mutations
+reproduce the page-size violation, lost global generation (cleanup delayed past
+its prompt-recovery assertion), and health-only wake. Each original file is
+restored after the mutation. These checks supplement the existing outer-commit,
+rollback, drain, current-authority, late-provider-binding and shutdown cases.
+
+Both newly supported external fixture paths skipped migrations. Empty-database
+runs failed with missing instance_settings before the worker or provider action.
+The worker and complete voice-store fixtures now apply pending migrations before
+creating the client and use the shared PostgreSQL bootstrap budget. The initial
+amplification fixture also omitted its required Speko provider config, then used
+the wrong public health method name; those failures preceded the actual 1,230-row
+baseline. Initial quiet checks counted the observer's previous calls; measurement
+is now stopped before an independent quiet-window spy is created. The quiet
+assertion itself is unchanged. The first typecheck exposed timing-only rows being
+used for full provider operations; the timing-header type stays separate from full
+rows at that operation boundary. All failures remain recorded as such.
+
+Current targeted acceptance passes 725 distinct cases: 18 voice lifecycle, 94
+shared coordinator/batching/startup/hostname, 97 complete voice-store, 469
+tool-access, and 47 health/receiver cases. Production typecheck and server build
+pass. The 18 lifecycle cases replace the earlier 16-case result; these counts do
+not add repeated runs. Full suites ran unless a narrower selection is explicitly
+named above. No full local repository matrix, actual host suspension, Cloud wake,
+multi-writer support, or savings is inferred from this worker migration. The original remaining-duty inventory stays
+in scope. Current exact-head reviews, security, CI, and parent landing are still
+required before merging #17576.
+
+
+## Landed-foundation acceptance, October 27
+
+The voice repair now integrates receiver parent `6e88ca0201`, including Discord
+`547fdf2139` and master `f8563d2507`. Exact-patch comparison preserves the repaired
+22-file scope and master's shared task-drain and native-checkpoint queue names.
+No database file is part of this slice.
+
+All 725 distinct targeted cases pass again: 112 complete voice/shared/startup
+cases, 97 complete voice-store cases, 469 complete tool-access cases, and 47
+complete health/receiver cases. Server production typecheck and build pass.
+Voice worker/store and health/receiver fixtures use separate initially empty
+self-migrating databases. Tool access uses a separate migrated clone. One initial
+tool-access invocation supplied the generic fixture variable instead of the
+suite-specific variable: 23 cases passed and 446 skipped. It was not a complete
+suite result or an assertion failure. The corrected invocation executes and
+passes all 469. Tests are not counted twice. Expected controlled failures and
+listener warnings remain in logs. Only documentation changes follow these checks.
+Fresh current-head reviews, CI and parent landing remain required. No full local
+matrix, provider acceptance, external wake or deployed sleep result is claimed.
+
+
+## Trusted-policy checkout compatibility, October 27
+
+CI run `40632057899` on `712f3862b5` failed policy because the trusted workflow
+had acquired `scripts/check-query-error-rendering.mjs` from newer master, while
+the checked-out PR head lacked that script. The build job separately received
+a runner shutdown signal during runtime bundling, then reported cancellation.
+The underlying shutdown cause is not established. The E2E aggregate reports
+`E2E_SHARDS_RESULT=success` but fails on `POLICY_RESULT=failure`; verification
+also fails on policy and build. Those four failed gates are not passing results.
+
+A normal merge of receiver `ab39569250` brings the landed UI and policy tooling
+into the checkout. Every server/package production and test file remains
+byte-identical to the 725-case tested `712f3862b5` source. The policy checker now
+executes successfully, and its complete Node test file passes locally. No sleep
+implementation, test assertion or workflow gate is weakened. Fresh CI must prove
+the full build and aggregate gates; the interrupted build is not relabeled as a
+pass. Fresh Ponytail and Greptile acceptance still precede any merge.
+
+
+## Wildcard failure and deterministic generation acceptance, October 28
+
+Current-head CI `40633667141` fails server shard 1 at the feature-change test's
+34,050 ms result against its 25,000 ms bound; verification fails as an aggregate.
+This is an actual required assertion failure, distinct from the older interrupted
+build and missing policy script. The old test mixed automatically advancing fake
+time with real database latency. It now disables automatic clock advancement,
+drives 20 explicit scheduler turns, waits for each pass without advancing the
+clock, and requires every invalidated call to close before the unrelated periodic
+authority deadline. Removing generation replay still fails with missing closures.
+The test no longer benchmarks host/database speed or raises its business bound.
+
+A real committed-session regression also reproduces wildcard starvation: while
+one broad reconstruction backs off, a newly ending exact call is not closed.
+The worker now retains the broad retry but considers ready exact hints and cached
+due calls independently. Each due call still reloads state and authorization in
+its owning check before effects. Failed exact scopes retain their own fence;
+the existing stale-cache failure regression still passes. Removing wildcard
+isolation fails the new exact-call assertion. Broad reconstruction becomes quiet
+after its successful retry, with no continuing SQL afterward.
+
+The full-row execution lookup and lean inventory lookup now share the live-state,
+scope and cursor predicate. Their projections remain intentionally different.
+An initial edit script rejected the header cursor name before applying the timing
+and predicate changes; the intermediate 19-case result covers only the earlier
+worker repair. It is not the final repair evidence. The corrected source passes
+all 19 lifecycle cases and 191 complete voice-store/shared/startup cases: 210
+distinct targeted cases. Production server typecheck and build pass. Both guarded
+regressions fail at their intended effect assertion and restore source afterward.
+The fresh voice-store database self-migrates. Existing controlled failure logs
+and signal-listener warnings remain recorded. The older 725-case acceptance
+belongs to its stated revision and is not added to this count. Fresh current-head
+reviews and all CI remain required before merging after receiver discovery.

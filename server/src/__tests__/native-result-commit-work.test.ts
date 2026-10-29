@@ -2,6 +2,7 @@ import { cancelNativeSession } from "../services/native-runtime/native-session-e
 import { dispatchPendingNativeStatusEffects } from "../services/native-runtime/status-decision-committer.js";
 import { reconcileNativeFinalizations } from "../services/native-runtime/native-finalization-reconciler.js";
 import { notifyNativeResultCommit } from "../services/native-result-commit-notifications.js";
+import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { randomUUID } from "node:crypto";
@@ -136,6 +137,27 @@ describe("accepted result commit lifecycle", () => {
     await quiet(); await coordinator!.stop(); await start(); await flush(); await quiet();
     expect(await db.select().from(statusDecisions).where(eq(statusDecisions.runId, binding.runId))).toHaveLength(1);
   });
+  it("ignores routine company-only finalization hints and still commits accepted work", async () => {
+    await start(); await flush(); await quiet();
+    const previous = db.$client.options.debug;
+    const queries: string[] = [];
+    db.$client.options.debug = (_id, query) => {
+      if (/from\s+"native_run_finalizations"/i.test(query)) queries.push(query);
+    };
+    try {
+      for (let index = 0; index < 3; index += 1) {
+        await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, { companyId }); });
+        await flush();
+      }
+      expect(queries).toEqual([]);
+    } finally { db.$client.options.debug = previous; }
+    const binding = await seed(); await barrier(binding); await flush();
+    await complete(binding, "control_plane"); await flush();
+    expect((await state(binding.runId)).phase).toBe("committed");
+    expect(await db.select().from(statusDecisions).where(eq(statusDecisions.runId, binding.runId))).toHaveLength(1);
+    await quiet();
+  });
+
   it("wakes when the real workspace recorder commits a later successful barrier", async () => {
     await start(); await flush();
     const binding = await seed(); await complete(binding, "control_plane"); await flush(); await quiet();

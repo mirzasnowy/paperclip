@@ -242,3 +242,62 @@ Evidence:
 These local checks do not establish full CI or deployed suspension. The pending
 whole-stack checks, remaining review findings, and unmigrated recurring duties
 remain open.
+
+## Current master integration and native lease quiet proof (2026-10-29)
+
+Accepted production source `9596fa022b57feea026c4728c80bdc36037b804f` contains reviewed parent `305014b030d6c5eb891c70bc57036f4192d4fdad`.
+That parent merged as `829f9e7eafe57588d214697efca336b35aecf45d`. A normal merge adopts the actual squash
+after proving complete parent-tree identity. The complete accepted child tree
+stays unchanged. Only this audit follows that source in the publication.
+
+Composition preserves 1,218 parent-only paths, 14 owned-only paths, 11,516
+identical paths, and 17 shared automatic merge results. The only manual
+resolution adds environment settlement inside the existing ordinary issue/run
+guard in native finalization notifications. Packages equal the parent byte for
+byte, including current Copilot profile 80 and its historical profile fixtures.
+No package or live provider qualification is added by this slice.
+
+The new database regression exposes the quiet-path requirement. Moving only
+the new environment notification outside the issue/run guard makes three
+routine company-only finalization hints perform three environment candidate
+SELECTs. That controlled baseline fails the quiet assertion. With the guard
+retained, the same test passes with zero candidate SELECTs. It then commits real
+native work, creates an eligible lease through the owning service, observes
+physical release, and returns to quiet. The test hash is identical across the
+controlled red/green pair, and the temporary production edit restores exactly.
+No assertion or timeout changes. Real lease, run, and settings writers retain
+their scoped or global notifications.
+
+Acceptance covers 4,172 distinct passing cases in 64 complete server test
+files, plus 20 targeted chat cases (4,192 selected cases total). The main
+62-file command reports 3,440 passes and 49 skips. All skips belong to the two
+Stop/control-read files: their indirect shared fixture has its own supported
+PAPERCLIP_RUN_CONTROL_TEST_DATABASE_URL override. The initial live log showed
+43 Stop skips; the final report includes another six read cases. Both complete
+files then pass on separate fresh databases: 51 control cases and six read
+cases. Their eight already-passing pure cases are counted once. This closes
+the coverage gap without counting skipped tests as passing.
+
+Separate process recovery passes 410, and review response passes 273.
+The targeted chat selection passes 20 committed-response and GitHub idle cases;
+1,794 other chat cases are outside the local selection. The complete
+Photon file is part of the main batch. Coverage also includes lease release,
+retention, environment runtime and drivers, workspace sync, native execution,
+Stop, startup readiness, queue, goals, interactions, monitor and status workers.
+
+All 65 selected test files restore to their exact committed hashes after fixture
+imports. The follow-up also hashes the indirect run-control fixture helper.
+Fixtures use 39 prepared fresh PostgreSQL 17 databases, plus fresh per-call
+helper databases. There are 412 migration journal entries through index/tag
+0413_tired_kronos; the final tag number is not an entry count. Database build,
+server production typecheck/build, module boundaries, migration order, and
+Copilot identity pass.
+
+Failure and scope accounting remains explicit. The unscoped baseline fails as
+expected. The original 49 skipped cases are recorded and completed as above.
+Earlier parent handoff timeout and chat-idle failure records remain in their
+own audits. Latest-head CI, security, and exact-head Greptile 5/5 remain separate
+merge requirements. There is no full local repository or full chat-suite claim,
+no live provider qualification, and no deployed sleep, database suspension,
+external alarm coverage, or cost claim. The writer model remains supported
+in-process producers. Existing Cloud sleep blockers remain.
