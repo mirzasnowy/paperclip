@@ -180,3 +180,68 @@ All other recurring duties, older failed stack gates and the earlier eight-worke
 suppression audit remain open. Cloud alarm coverage, idle-sleep safety and durable
 resource blockers are unchanged. This audit establishes worker behavior, not
 measured database suspension, host wakeup or cost savings. No merge is authorized.
+
+## Current parent integration and routine-hint regression (2026-10-29)
+
+This slice incorporates parent #17748 at
+`b2efdb2dbbbef5b2227ffa2bd2a9a6cfe3867fe2` through a normal merge. A
+batched tree comparison preserves 1,208 parent-only entries, seven owned-only
+entries, 11,524 identical entries and ten automatic shared merges. The sole
+manual conflict adds run-projection fanout inside the existing ordinary issue/run
+scope guard. Dedicated notifications and explicit settings activation retain their
+contracts. The entire package tree matches parent profile 80, including all
+historical identities. No provider profile is regenerated for this server change.
+
+Twenty-four added comment objects in six files were removed with identical
+nontrivia TypeScript token streams. No directive was removed. The projection
+extraction retains the shared candidate predicate, exact run/result correlation,
+atomic metadata preservation, terminal-event idempotency, original completion time,
+and physical-owner evidence. Status decisions, external effects and resource
+settlement remain with their existing owners.
+
+The new real-database regression starts an idle projection worker and submits
+three routine company-only finalization hints. A controlled baseline moves only
+projection fanout outside the guard and keeps all other parent guards intact.
+It produces three candidate SELECTs and fails the zero-query assertion. Restoring
+the production helper passes the same assertion. A real accepted result and
+committed decision then repair the run and emit exactly one terminal event before
+returning to quiet. Red fails one selected case in 6.63 seconds; green passes it in
+6.55 seconds. Twenty cases outside the focused pattern are not counted as passing
+there. Both phases use fresh dedicated PostgreSQL 17 databases and restore the
+production helper byte-for-byte. No assertion or timeout is relaxed.
+
+Complete validation includes the result/physical-work consumers plus run lifecycle
+and required quality review, because the projection is extracted from the live
+finalizer. It retains the startup held-work regression and the real producer paths.
+Current-head CI and fresh review remain separate publication and merge gates.
+
+### Complete current-source acceptance
+
+Source `a83b9449233a275176e637c765059f414305d7c1` passes **2,513 distinct
+cases in 21 complete files**, with no skips in those files. The 19-file main
+command passes 1,830 cases in 301.14 seconds. Process recovery passes 410 in
+163.58 seconds; external-chat response passes 273 in 53.26 seconds. The selection
+includes all 21 projection cases, 85 startup cases, required quality review,
+heartbeat run lifecycle, both accepted-result producers, and physical-work
+consumers. Production server typechecking, build, module boundaries, migration
+order and the source identity check pass.
+
+Seventeen dedicated PostgreSQL 17 databases use the unchanged migration 413 schema.
+Embedded-only calls use existing fresh-per-call recovery fixtures. Every temporary
+import is restored byte-for-byte and all 21 selected test hashes match after
+completion. No assertion or timeout is relaxed. The controlled unscoped-hint
+baseline remains an intended failing regression; it is not counted as acceptance.
+Earlier failures in this audit retain their revision and disposition.
+
+Parent #17748 merged as `28e38da7e6bdd6af4092dda56bc2be05bed47af5`, after
+57 clean current-head checks and Greptile 5/5. Its complete reviewed tree equals
+the actual squash. Normal merge `d4b46fd29cb23126d556cc3aeb883e6b41f1a8a5`
+adopts that ancestry with this child's complete tested tree unchanged. This
+slice can now target master; fresh exact-head CI and review remain required.
+
+The unchanged package tree retains parent profile 80 acceptance: 130 passing
+installation/compatibility/transport cases, 22 installed ACPX/Grok contract cases
+and 26 native-provider Rust cases. One existing opt-in closed Pi snapshot case
+was skipped because its distribution root was unset. This does not qualify a
+live Pi installation. No full local repository suite, live provider qualification,
+deployed sleep, expanded Cloud alarm coverage or measured savings is claimed.

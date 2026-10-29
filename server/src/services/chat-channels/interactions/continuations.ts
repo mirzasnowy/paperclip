@@ -7,7 +7,6 @@ import {
   asc,
   desc,
   eq,
-  gt,
   inArray,
   sql,
   isNotNull,
@@ -474,18 +473,18 @@ export function createChatInteractionContinuations(db: Db, options: InteractionC
           (!scope.issueId || value.issueId === scope.issueId)),
       load: async (scope?: ChatContinuationScope, signal?: AbortSignal): Promise<Entry[]> => {
         const entries: Entry[] = [];
-        let cursor: string | undefined;
+        let cursor: { companyId: string; id: string } | undefined;
         while (!signal?.aborted) {
           const rows = await db.select(selection).from(chatActions).where(and(
-            eq(chatActions.kind, "interaction_wakeup"), inArray(chatActions.status, ["issued", "processing"]),
+            sql`${chatActions.kind} = 'interaction_wakeup' AND ${chatActions.status} IN ('issued', 'processing')`,
             scope ? eq(chatActions.companyId, scope.companyId) : undefined,
             scope?.actionId ? eq(chatActions.id, scope.actionId) : undefined,
             scope?.issueId ? eq(sql<string>`${chatActions.payload}->>'issueId'`, scope.issueId) : undefined,
-            cursor ? gt(chatActions.id, cursor) : undefined,
-          )).orderBy(asc(chatActions.id)).limit(100);
+            cursor ? sql`(${chatActions.companyId}, ${chatActions.id}) > (${cursor.companyId}, ${cursor.id})` : undefined,
+          )).orderBy(asc(chatActions.companyId), asc(chatActions.id)).limit(100);
           entries.push(...rows.map(entry));
           if (rows.length < 100) return entries;
-          cursor = rows[rows.length - 1].id;
+          cursor = rows[rows.length - 1];
         }
         throw signal?.reason ?? new Error("Interaction continuation recovery stopped");
       },

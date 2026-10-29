@@ -10,8 +10,10 @@ import { notifyUnsafeWorkspaceExportRunChange } from "../unsafe-workspace-export
 import { notifyUnsafeWorkspaceExportRecovery } from "../unsafe-workspace-export-notifications.js";
 import { notifyCancelledWorkspacePreservation } from "../cancelled-workspace-preservation-notifications.js";
 import { notifyInstructionCollection } from "../instruction-collection-notifications.js";
+import { readRequiredQualityReview } from "../required-quality-review.js";
 import { pendingNativeGovernance } from "./native-governance.js";
 import { notifyChatRunMilestones } from "../chat-run-milestone-notifications.js";
+import { onboardingFirstTaskCompletionAllowed } from "../onboarding-first-task-admission.js";
 import { notifyExecutionRunWork } from "../execution-control-notifications.js";
 import { reconcileMuseNativeTerminalRun } from "./muse-terminal-reconciliation.js";
 import { assertNativeCaseHandoffResult } from "./native-case-handoff.js";
@@ -739,8 +741,8 @@ export async function recoverCommittedNativeChatResponse(
   try {
     materialized = await db.transaction(async (transaction) => {
       const tx = transaction as unknown as Db;
-      // Share coordinator -> issue -> run ordering with status, workspace, and
-      // recovery-notice owners; presentation may repair the same committed run.
+
+
       const [coordinator] = await tx
         .select()
         .from(nativeRunFinalizations)
@@ -815,9 +817,11 @@ export async function recoverCommittedNativeChatResponse(
         return false;
       // An existing selected answer, including a subsequently deleted one, must
       // never be replaced or resurrected by a background presentation repair.
+      const recordedPresentation = record(record(run.resultJson).presentationDecision);
       if (
-        typeof record(record(run.resultJson).presentationDecision).commentId ===
-        "string"
+        typeof recordedPresentation.commentId === "string" ||
+        (recordedPresentation.commentAction !== undefined && recordedPresentation.commentAction !== "create") ||
+        record(run.contextSnapshot).skipIssueComment === true
       )
         return false;
       if (input.onlyWhenDue) {
@@ -1058,8 +1062,8 @@ export async function recoverCommittedNativeReviewResponse(db: Db, input: {
 }): Promise<boolean> {
   const materialized = await db.transaction(async transaction => {
     const tx = transaction as unknown as Db;
-    // Status replay and finalization also lock coordinator -> issue. Waiting
-    // for the coordinator must not hold a task lock needed by its current owner.
+
+
     const [coordinator] = await tx.select({ id: nativeRunFinalizations.runId }).from(nativeRunFinalizations)
       .where(and(eq(nativeRunFinalizations.companyId, input.companyId),
         eq(nativeRunFinalizations.issueId, input.issueId), eq(nativeRunFinalizations.runId, input.runId))).for("update");
@@ -1078,7 +1082,7 @@ export async function finalizeNativeRun(input: {
   db: Db;
   runId: string;
   workspaceFinalizeStatus: "succeeded" | "failed";
-  /** Scheduled recovery rechecks a saved retry under the coordinator claim lock. */
+
   onlyWhenDue?: boolean;
   /** Reconciliation owns terminal run projection; the live heartbeat does it afterward. */
   projectRunStatus?: boolean;
@@ -1377,7 +1381,9 @@ export async function finalizeNativeRun(input: {
       authoritativeIssue.executionRunId !== run.id && authoritativeIssue.checkoutRunId !== run.id
       ? await readNativeMonitorDelivery(input.db, { companyId: run.companyId, issueId: coordinator.issueId, runId: run.id })
       : null;
-    const proposedDecision = resolveNativeFinalizerStatus({
+    const qualityReview = await readRequiredQualityReview(input.db, authoritativeIssue);
+    let proposedDecision = resolveNativeFinalizerStatus({
+      requiredQualityReviewSatisfied: qualityReview.satisfied,
       caseHandoffAuthorized: Boolean(await assertNativeCaseHandoffResult(input.db, run.id, authoritativeIssue.id, result)),
       monitorWaitDispatched: monitorDelivery !== null,
       monitorWaitPreserved: preservedMonitorWait !== null,
@@ -1419,6 +1425,14 @@ export async function finalizeNativeRun(input: {
       agentId: run.agentId,
       priorIssueStatus: authoritativeStatus(authoritativeIssue.status),
     });
+    // Already accepted results still require the server-owned first-task decision.
+    // Keep the task open without inventing an interaction or rerunning the work.
+    if (proposedDecision.statusAction === "done" && !await onboardingFirstTaskCompletionAllowed(input.db, {
+      companyId: run.companyId, issueId: authoritativeIssue.id, runId: run.id,
+    })) {
+      proposedDecision = { ...proposedDecision, statusAction: "in_review", toStatus: "in_review",
+        reasonCode: "onboarding_first_task_decision_required", unblockDescriptor: null, effects: [{ kind: "release_checkout" }] };
+    }
     const decision = conversationNativeDecision({
       conversation: isConversation(authoritativeIssue), terminalState,
       workspaceFinalizeStatus: input.workspaceFinalizeStatus, hasGovernanceGate: !!governanceGate,
@@ -1615,9 +1629,9 @@ export async function finalizeNativeRun(input: {
         .returning();
       const projection = await input.db.transaction(async transaction => {
         const tx = transaction as unknown as Db;
-        // A recovery worker can project after the status decision commits and
-        // before this live finalizer arrives. Observe that writer under the
-        // run lock before deciding whether another terminal event is owed.
+
+
+
         const [before] = await tx.select({ status: heartbeatRuns.status, runtimeMode: heartbeatRuns.runtimeMode,
           nativePhase: heartbeatRuns.nativePhase, finishedAt: heartbeatRuns.finishedAt })
           .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId)))
@@ -1650,7 +1664,7 @@ export async function finalizeNativeRun(input: {
       }
       if (input.projectRunStatus)
         await materializeCommittedReviewResponse(input.db, input.runId);
-      if (input.projectRunStatus && finalizationPhase === "committed")
+      if (input.projectRunStatus && finalizationPhase === "committed" && !input.skipNativeResponsePresentation)
         await repairCommittedNativeChatResponse(input.db, {
           companyId: run.companyId,
           issueId: coordinator.issueId,

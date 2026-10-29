@@ -205,3 +205,69 @@ than awaiting it before HTTP becomes ready. Coordinator cancellation and shutdow
 joining remain intact; no polling, timer, or durable state is added. All 89 startup
 cases pass on the master-integrated branch, including the failing-before-fix case.
 Full integrated typechecking and current-head CI remain separate gates.
+
+## Current master integration and indirect wake audit (2026-10-29)
+
+Production and regression source `50f4432ed88537b8d522cf1dce24c33588db0bac` contains the reviewed slice 55
+parent `2a8777bbed8b1e10810e3d6d99aae3f25b4854ef`. That prerequisite merged as `8ac5a128e66fb672e88106412f76cf278599bfc4`.
+A normal merge adopted the actual squash after proving that the reviewed parent
+and squash have identical complete trees. The complete accepted child tree stayed
+unchanged. This publication adds only this audit to that source.
+
+The parent composition proof retains 1,203 parent-only paths, 20 owned-only paths,
+11,512 identical paths, and 19 shared automatic merge results. Five explicit
+resolutions preserve the source-generation checks for accepted chat handoff,
+task-before-comment locks, issue-specific decision invalidation, and current
+conversation event columns. The explicit company-authority notification remains
+active. Runner packages equal the parent byte for byte. Current profile 80 and
+its historical profile fixtures are preserved; this slice does not requalify a
+live provider.
+
+A database regression exposed recurring candidate SQL after routine company-only
+maintenance hints. Restoring the original unconditional fanout failed both the
+native and chat cases. Adding only the ordinary issue/run guards fixed the native
+case, but the chat case still made three candidate queries. That failed attempt
+remains part of the evidence. The indirect path was through the shared inbound
+wake-notice and response-availability helpers.
+
+Both shared helpers now keep settlement notification enabled by default. Their
+existing callers include valid company-wide producers, so dropping broad scopes
+globally would lose work. Only the milestone dispatcher disables their duplicate
+settlement fanout. Its scoped issue-review notification already signals real
+work. The explicit company-authority helper still signals company changes. No
+new table, polling loop, or producer wrappers were added.
+
+Four database cases cover both directions: coarse native/chat hints cause zero
+settlement candidate SQL after quiet, while real inbound-notice and response
+changes at company scope still settle an answered conversation. A controlled
+indirect baseline fails one of these cases and passes three; the repaired source
+passes all four. The test hash is identical across that final red/green pair.
+All temporary production changes restore byte for byte.
+
+Local acceptance covers 3,129 distinct cases across 37 complete server test
+files, plus 18 selected committed-chat-response cases (3,147 selected cases
+in total). The other 1,796 chat integration cases were outside the local
+selection. Coverage includes the full settlement, queue, monitor scheduling,
+run-state, goal, decision-target, interaction, task Retry, projection, result
+commit, workspace, process recovery, and review consumers. The 38 selected test
+files restore to their exact committed hashes after temporary fixture imports.
+Prepared fixtures use PostgreSQL 17 and the 413-migration schema; helpers create
+additional fresh per-call fixtures where required.
+
+Failure accounting: the initial 35-file command passed 2,445 cases and timed out
+one restored-work handoff case at its existing 15-second limit. It is not a
+passing aggregate command. The complete unchanged 89-case recovery-actions file
+then passed on a fresh fixture; that case took 22 ms. The timeout's root cause was
+not established. The earlier 34 passing files and the fresh full-file result
+provide distinct-case coverage without counting the other 88 actions cases
+twice. No assertion, timeout, or test selection was weakened to hide the failure.
+The remaining complete process and review files and the targeted chat selection
+also pass. Fresh publication-head CI is still required.
+
+Database build, server production typechecking and build, module boundaries,
+migration order, and current Copilot profile identity pass on this source.
+The entire packages tree equals the parent that already qualified the current
+profile-80 runtime. This is not full local repository acceptance, full chat-suite
+acceptance, deployed sleep, database suspension, external alarm coverage, or a
+fleet cost claim. Supported writers remain in-process; independent SQL and other
+replicas need their own ingress contract. Existing Cloud sleep blockers remain.

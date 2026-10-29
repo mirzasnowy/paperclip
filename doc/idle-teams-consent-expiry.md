@@ -7,8 +7,10 @@ independent timer, provider request or external-wake capability.
 ## Obligation and trigger
 
 Only `consent_pending`, `awaiting_consent` and `upload_pending` rows are eligible.
-Each uses its saved `expiresAt`. Startup reconstructs these rows in 100-row UUID
-pages. Committed writes reload the affected transfer ID. The service registers
+Each uses its saved `expiresAt`. Registered startup reconstruction yields after
+one 100-row UUID page per scope refresh and resumes through the shared scheduler.
+Registration resets the owner’s cursors so a partial scan restarts safely. The
+explicit one-shot inventory method still returns the complete inventory. Committed writes reload the affected transfer ID. The service registers
 intent before insertion and its central versioned update, within the existing
 transaction. Nested savepoints wait for outer settlement. The shared work-signals
 protocol retains ambiguous outcomes; callers do not manage recovery wrappers.
@@ -59,3 +61,12 @@ projection rollback, fairness, drain/resume and shutdown. Production integration
 registers the worker before Board publication and proves expiry cancels the
 publication without another provider call. Existing authority, publication and
 consent suites remain covered. See the [audit and failure ledger](plans/2026-10-25-teams-consent-expiry-sleep-audit.md).
+
+
+Current local acceptance covers 223 distinct cases: 209 across five complete
+protocol/publication/consent/runtime/wiring suites, plus 14 selected real Board
+producer and Teams-authority integration cases. The other 1,580 integration
+cases were skipped. A real 105-row regression proves bounded startup, same-owner
+restart, complete saved-deadline expiry, and quiet SQL. A guarded missing-reset
+mutation fails that regression. See the audit for exact revisions, earlier
+fixture failures, current-parent integration status and deployment limits.

@@ -633,10 +633,10 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
   }
 
   async function resumeQueuedCommentInterrupt(companyId: string, queueId: string, opts?: { retryCleanup?: boolean }) {
-    return resumeSavedLegacyComments(companyId, queueId, true, opts);
+    return resumeSavedComments(companyId, queueId, true, opts);
   }
 
-  async function resumeSavedLegacyComments(companyId: string, queueId: string, interrupted = false, opts?: { retryCleanup?: boolean }) {
+  async function resumeSavedComments(companyId: string, queueId: string, interrupted = false, opts?: { retryCleanup?: boolean }) {
     const [wake] = await db.select().from(agentWakeupRequests).where(and(
       eq(agentWakeupRequests.id, queueId), eq(agentWakeupRequests.companyId, companyId),
       eq(agentWakeupRequests.status, "deferred_issue_execution"),
@@ -668,7 +668,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     }
     if (!actorId) return;
     const agent = await getAgent(wake.agentId);
-    if (!agent || agent.companyId !== companyId || (agent.adapterType === "paperclip_runner" && !response?.source.requiresFreshSession)) return;
+    if (!agent || agent.companyId !== companyId || (agent.adapterType === "paperclip_runner" && !interrupted && !response?.source.requiresFreshSession)) return;
     const [active] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
       eq(heartbeatRuns.companyId, companyId),
       eq(heartbeatRuns.agentId, wake.agentId),
@@ -826,7 +826,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       const run = await getRunExecutionWait(wake.companyId, sourceId);
       if (!run || run.companyId !== wake.companyId || run.agentId !== wake.agentId) continue;
       if (canContinueCancelledRun(run)) {
-        await resumeSavedLegacyComments(wake.companyId, wake.id).catch(err => {
+        await resumeSavedComments(wake.companyId, wake.id).catch(err => {
           logger.warn({ err, runId: run.id }, "failed to resume saved input after provider cancellation");
         });
         continue;
@@ -1133,8 +1133,8 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     let run = await getRun(runId);
     if (!run) throw notFound("Heartbeat run not found");
     if (options.expectedStatus && run.status !== options.expectedStatus) return null;
-    // Recovery can settle as soon as either fence commits. Keep the operator
-    // identity with that intent so a winning recovery still suppresses restart.
+
+
     const attribution = {
       cancelledByActorType: options.resultJson?.cancelledByActorType,
       cancelledByUserId: options.resultJson?.cancelledByUserId,
@@ -1728,7 +1728,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     cancelRunInternal,
     resumeExecutionWaitComments,
     resumeQueuedCommentInterrupt,
-    resumeSavedLegacyComments,
+    resumeSavedLegacyComments: resumeSavedComments,
     resumeTaskRetry,
     cancelActiveForAgentInternal,
     cancelInvocationsForAgentsInternal,

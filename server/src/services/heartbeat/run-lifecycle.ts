@@ -1421,8 +1421,8 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       }
       await tx.update(agentWakeupRequests)
         .set({ status, ...patch, updatedAt: new Date() })
-        // Reassignment revokes requests transactionally. Late execution settlement
-        // must not turn a revoked request back into authority for a later retry.
+
+
         .where(and(eq(agentWakeupRequests.id, wakeupRequestId), ne(agentWakeupRequests.status, "cancelled")));
     });
   }
@@ -2383,7 +2383,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     const contextSnapshot = parseObject(run.contextSnapshot);
     const taskKey = deriveTaskKeyWithHeartbeatFallback(contextSnapshot, null);
     const sessionBefore = await resolveSessionBeforeForWakeup(agent, taskKey);
-    const retryContextSnapshot = withRecoveryContext(
+    const retryContextSnapshot: Record<string, unknown> = withRecoveryContext(
       {
         ...contextSnapshot,
         retryOfRunId: run.id,
@@ -2393,6 +2393,9 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       },
       "status_only",
     );
+    delete retryContextSnapshot.skillVersions;
+    delete retryContextSnapshot.skillSelectionSnapshot;
+    delete retryContextSnapshot.shadowedSkills;
     const responsibleUserId = await resolveResponsibleUserIdForRunContext(
       run,
       retryContextSnapshot,

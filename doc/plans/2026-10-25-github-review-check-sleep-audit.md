@@ -159,3 +159,53 @@ in a new database. No production behavior changed. Head `59f8c8b3e5` has all 53
 remote checks passing and fresh Greptile 5/5 with zero review threads. The new
 fixture-only commit requires its own fresh remote checks; the two local full
 runs are not reported as passes.
+
+## Current-parent merge acceptance (October 28)
+
+The earlier results above retain their stated revisions. They are not evidence
+that an old review score applies to a repaired head.
+
+The existing branch was merged normally with the updated terminal-response
+parent. Only its unlanded `0396_charming_edwin_jarvis` migration artifacts were
+removed before canonical generation. The domain and schema edits were preserved.
+Migration `0402_ancient_malice.sql` now creates the same partial work index with
+concurrent, idempotent creation. All parent SQL, journal entries, and retained
+snapshot bytes remain unchanged. Generation retains snapshots 0398 through 0402.
+
+At `6995f84b240a14a7b8660e1cf095b3aa1e1e3168`, 331 distinct cases passed:
+264 complete GitHub workflow cases, 30 completion cases, eight real/unit issue-tree
+producer cases, 16 login-cleanup cases, and 13 startup cases. The GitHub command
+filtered 1,485 unrelated cases. Login cleanup used its real embedded PostgreSQL
+fixture; the other database groups used separate, pre-migrated PostgreSQL fixtures.
+Database build, server typecheck/build, module boundaries, migration safety, and
+target-branch migration order passed.
+
+The actual terminal-response parent landed as
+`f8226b0515634f9c7c74e80bb6cf18f3c2634c12`. Its squash tree exactly matched its
+verified merge composition. A normal merge then brought that actual parent and
+current master into this branch at
+`9c538aed1251fd7f7cecb829a0ecbce6110fb1ed`. Both complete added/removed patches
+and every unrelated master blob were preserved. This includes the privacy-query,
+remote native skill delivery, lockfile, and upstream Telegram fixture changes.
+
+At that exact integration, all 264 complete GitHub workflow cases and all
+13 startup cases passed again: 277 distinct cases, with 1,485 unrelated
+GitHub cases filtered out. A new database received all migrations through 0402.
+Database build, server typecheck/build, module boundaries, and migration order
+against the actual landed parent passed. The earlier 331-case result retains
+its earlier revision scope.
+
+A populated parent database upgraded from 401 to 402 with all 400 previous
+migration receipts unchanged and exactly one new receipt. Replay added none.
+The index was valid and ready on both that database and a fresh database.
+A rollback-only candidate probe added 10,000 processed actions and one received
+action. The actual parameterized predicate selected one row through the partial
+index with two shared buffers and 0.007 ms execution time. This measures candidate
+discovery, not all provenance or lease reads. The first probe omitted the required
+provider action ID and rolled back; the corrected fixture supplied unique IDs.
+No production code changed for that fixture error.
+
+The final audit commit changes documentation only. Source, tests, and migration
+hashes match the accepted integration. Fresh current-head CI and Greptile review
+remain required before merge. No host suspension, external alarm expansion, or
+fleet cost reduction is claimed.
