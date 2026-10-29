@@ -1079,3 +1079,63 @@ describe("JSON fields followed by sentence punctuation redact", () => {
     );
   });
 });
+
+describe("escaped JSON fields with embedded quotes redact fully", () => {
+  it("redacts an embedded quote followed by a comma and keeps the neighbor", () => {
+    const input = JSON.stringify(
+      JSON.stringify({ token: 'pre",SENSITIVE', message: "hello" }),
+    );
+    const output = redactSensitiveText(input);
+    expect(output).toBe(
+      JSON.stringify(
+        JSON.stringify({ token: REDACTED_EVENT_VALUE, message: "hello" }),
+      ),
+    );
+    expect(JSON.parse(JSON.parse(output))).toEqual({
+      token: REDACTED_EVENT_VALUE,
+      message: "hello",
+    });
+    expect(output).not.toContain("SENSITIVE");
+  });
+
+  it("redacts an embedded quote followed by whitespace and keeps the neighbor", () => {
+    const input = JSON.stringify(
+      JSON.stringify({ token: 'pre" X', message: "hello" }),
+    );
+    const output = redactSensitiveText(input);
+    expect(output).toBe(
+      JSON.stringify(
+        JSON.stringify({ token: REDACTED_EVENT_VALUE, message: "hello" }),
+      ),
+    );
+    expect(JSON.parse(JSON.parse(output))).toEqual({
+      token: REDACTED_EVENT_VALUE,
+      message: "hello",
+    });
+  });
+
+  it("redacts two escaped secret fields when the first has an embedded quote", () => {
+    const input = JSON.stringify(
+      JSON.stringify({ token: 'pre",X', password: "hunter2" }),
+    );
+    const output = redactSensitiveText(input);
+    expect(output).toBe(
+      JSON.stringify(
+        JSON.stringify({
+          token: REDACTED_EVENT_VALUE,
+          password: REDACTED_EVENT_VALUE,
+        }),
+      ),
+    );
+    expect(output).not.toContain("hunter2");
+  });
+
+  it("keeps redacting an embedded-quote escaped value on a second pass", () => {
+    const once = redactSensitiveText(
+      JSON.stringify(
+        JSON.stringify({ token: 'pre",SENSITIVE', message: "hello" }),
+      ),
+    );
+    expect(redactSensitiveText(once)).toBe(once);
+  });
+});
