@@ -15,6 +15,10 @@ import { idleWorkSnapshot } from "../services/task-admission.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { externalConversationSettlementWork } from "../services/external-conversation-settlement-work.js";
+import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
+import { notifyChatRunMilestones } from "../services/chat-run-milestone-notifications.js";
+import { notifyChatInboundWakeNotices } from "../services/chat-inbound-wake-notice-notifications.js";
+import { notifyChatResponseAvailability } from "../services/chat-response-availability.js";
 import { issueApprovalService } from "../services/issue-approvals.js";
 import express from "express";
 import request from "supertest";
@@ -230,6 +234,45 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       try { await vi.advanceTimersByTimeAsync(120_000); await delay(10); expect(queries).toEqual([]); }
       finally { db.$client.options.debug = prior; }
     }
+    it.each(["native finalization", "chat milestone"] as const)("ignores routine company-only settlement hints from %s and resumes on execution release", async producer => {
+      const f = await fixture(true);
+      await db.update(issues).set({ executionRunId: f.runId }).where(eq(issues.id, f.issueId));
+      await start(); await flush(); await quiet();
+      const previous = db.$client.options.debug;
+      const queries: string[] = [];
+      db.$client.options.debug = (_id, query) => {
+        if (query.includes('"issues"') && query.includes("chat_conversations")) queries.push(query);
+      };
+      try {
+        for (let index = 0; index < 3; index += 1) {
+          await db.transaction(async tx => {
+            if (producer === "native finalization") await notifyNativeFinalizationWork(tx, { companyId: f.companyId });
+            else await notifyChatRunMilestones(tx, { companyId: f.companyId });
+          });
+          await flush();
+        }
+        expect(queries).toEqual([]);
+      } finally { db.$client.options.debug = previous; }
+      await issueService(db).update(f.issueId, { executionRunId: null });
+      await flush();
+      expect(await state(f)).toMatchObject({ status: "in_review", externalConversationState: "waiting" });
+      await quiet();
+    });
+
+    it.each(["inbound notice", "response availability"] as const)("keeps real company-wide %s settlement notifications enabled", async producer => {
+      const f = await fixture(true);
+      await db.update(issues).set({ executionRunId: f.runId }).where(eq(issues.id, f.issueId));
+      await start(); await flush(); await quiet();
+      await db.transaction(async tx => {
+        if (producer === "inbound notice") await notifyChatInboundWakeNotices(tx, { companyId: f.companyId });
+        else await notifyChatResponseAvailability(tx, { companyId: f.companyId });
+        await tx.update(issues).set({ executionRunId: null }).where(eq(issues.id, f.issueId));
+      });
+      await flush();
+      expect(await state(f)).toMatchObject({ status: "in_review", externalConversationState: "waiting" });
+      await quiet();
+    });
+
     it("reconstructs answered turns and becomes quiet with retained history", async () => {
       const f = await fixture(true); await start(); await flush();
       expect(await state(f)).toMatchObject({ status: "in_review", externalConversationState: "waiting" });
