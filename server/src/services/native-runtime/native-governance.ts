@@ -8,7 +8,7 @@ function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
 }
 
-/** Caller holds the task/run locks, fencing new linked rows while existing sources are locked. */
+
 export async function lockNativeGovernanceSources(input: { db: Db; companyId: string; issueId: string }): Promise<void> {
   const interactions = await input.db.select({ kind: issueThreadInteractions.kind }).from(issueThreadInteractions)
     .where(and(eq(issueThreadInteractions.companyId, input.companyId), eq(issueThreadInteractions.issueId, input.issueId)))

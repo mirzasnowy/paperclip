@@ -21,7 +21,7 @@ export async function notifyVoiceChange(tx: object, scope?: VoiceRecoveryScope) 
   await notifyVoiceRecovery(tx, scope);
   await notifyVoiceReplies(tx, scope);
   await notifyVoiceInbound(tx, scope);
-  await notifyVoiceReports(tx, scope);
+  if (scope?.kind === "session") await notifyVoiceReports(tx, { kind: "session", id: scope.id });
 }
 export function withVoiceSessionChange<T>(db: Db, id: string, write: (tx: Parameters<Parameters<Db["transaction"]>[0]>[0]) => PromiseLike<T>, options: { replyDelivery?: boolean } = {}): Promise<T> {
   return db.transaction(async tx => {

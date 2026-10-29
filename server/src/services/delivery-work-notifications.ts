@@ -33,6 +33,7 @@ export const DELIVERY_QUEUES = {
   decisionEffectRecovery: "decision-effect-recovery",
   decisionExpiry: "decision-expiry",
   decisionContinuation: "decision-continuation",
+
   decisionArchiveDelivery: "decision-archive-delivery",
   toolConnectionHealth: "tool-connection-health",
   toolReviewProjection: "tool-review-projection",
@@ -48,6 +49,7 @@ export const DELIVERY_QUEUES = {
   localLoginCleanup: "local-login-cleanup",
   budgetEnforcement: "budget-enforcement",
   accounting: "cost-accounting",
+  taskDrainExpiry: "task-drain-expiry",
   agentLifecycle: "agent-lifecycle",
   chatBoardMessages: "chat-board-messages",
   chatTaskStarts: "chat-task-starts",
@@ -105,6 +107,7 @@ export const DELIVERY_QUEUES = {
   routineSchedules: "routine-schedules",
   issueMonitors: "issue-monitors",
   caseHandoffs: "case-handoffs",
+  nativeCheckpointExpiration: "native-checkpoint-expiration",
 } as const;
 export type DeliveryQueue = typeof DELIVERY_QUEUES[keyof typeof DELIVERY_QUEUES];
 

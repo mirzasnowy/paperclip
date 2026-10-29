@@ -17,6 +17,7 @@ import {
   vi,
 } from "vitest";
 import {
+  applyPendingMigrations,
   activityLog,
   agents,
   authUsers,
@@ -924,6 +925,7 @@ describeEmbeddedPostgres("tool access service", () => {
 
   beforeAll(async () => {
     if (externalDatabaseUrl) {
+      await applyPendingMigrations(externalDatabaseUrl);
       db = createDb(externalDatabaseUrl);
       await instanceSettingsService(db).updateExperimental({ enableMemoryConnectors: true });
       return;
@@ -10116,8 +10118,8 @@ describeEmbeddedPostgres("tool access service", () => {
         if (mode === "rollback") throw rollback;
       });
       if (mode === "rollback") await expect(operation).rejects.toBe(rollback); else await operation;
-      // Rollback still releases the intent for reconciliation; no uncommitted
-      // card becomes visible and neither consumer can run before outer settlement.
+
+
       expect(reassessment).toHaveBeenCalledTimes(1); expect(reviewResponse).toHaveBeenCalledTimes(1);
       const [persisted] = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.issueId, issue.id));
       expect(persisted.status).toBe(mode === "rollback" ? "accepted" : "pending");

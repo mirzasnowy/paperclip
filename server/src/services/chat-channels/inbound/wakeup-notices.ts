@@ -134,12 +134,12 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
     return Boolean(link);
   }
 
-  async function noticeCandidates(limit: number, cursor: InboundWakeNoticeCursor | null, scope?: InboundWakeNoticeScope): Promise<NoticeCandidate[]> {
+  function noticeCandidateQuery(cursor: InboundWakeNoticeCursor | null, scope?: InboundWakeNoticeScope) {
     const owner = alias(agentWakeupRequests, "chat_notice_owner");
     // Keep UUID columns indexable. Match only canonical lowercase UUID text,
     // preserving the old comparison while malformed payloads match nothing.
     const payloadUuid = (value: SQL) =>
-      sql`(case when ${value} ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (${value})::uuid end)`;
+      sql<string>`(case when ${value} ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (${value})::uuid end)`;
     const payloadIssueId = payloadUuid(sql`${chatActions.payload}->>'issueId'`);
     const payloadCommentId = payloadUuid(sql`${chatActions.payload}->>'commentId'`);
     const coalescedOwnerId = sql`${agentWakeupRequests.payload}->>'coalescedIntoWakeupRequestId'`;
@@ -163,7 +163,8 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
     // A bounded keyset sweep, not an in-memory work queue. Advancing even past
     // revoked candidates prevents an inaccessible old message starving others.
     return db
-      .select({ action: chatActions, cursorCreatedAt: sql<string>`${chatActions.createdAt}::text` })
+      .select({ action: chatActions, cursorCreatedAt: sql<string>`${chatActions.createdAt}::text`,
+        issueId: payloadIssueId.as("notice_issue_id") })
       .from(chatActions)
       .innerJoin(
         agentWakeupRequests,
@@ -207,7 +208,11 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
                 then 'queued' else 'not_started' end) || ':' ||
               ${chatActions.endpointId}::text || ':' || ${chatActions.conversationId}::text)`,
         ),
-      )
+      );
+  }
+
+  async function noticeCandidates(limit: number, cursor: InboundWakeNoticeCursor | null, scope?: InboundWakeNoticeScope): Promise<NoticeCandidate[]> {
+    return noticeCandidateQuery(cursor, scope)
       .orderBy(asc(chatActions.createdAt), asc(chatActions.id))
       .limit(Math.max(1, Math.min(limit, 200)));
   }
@@ -324,19 +329,11 @@ export function createInboundWakeNotices(db: Db, options: NoticeOptions) {
   }
 
   async function loadInboundWakeNoticeScopes(scope?: InboundWakeNoticeScope, signal?: AbortSignal) {
-    const scopes = new Map<string, { companyId: string; issueId: string }>();
-    let cursor: InboundWakeNoticeCursor | null = null;
-    do {
-      signal?.throwIfAborted();
-      const candidates = await noticeCandidates(200, cursor, scope);
-      for (const { action } of candidates) {
-        // The candidate SQL already requires a canonical UUID issue binding.
-        const issueId = String(action.payload.issueId);
-        scopes.set(`${action.companyId}:${issueId}`, { companyId: action.companyId, issueId });
-      }
-      cursor = continuation(candidates, 200);
-    } while (cursor);
-    return [...scopes.values()];
+    signal?.throwIfAborted();
+    if (scope?.issueId) return [{ companyId: scope.companyId, issueId: scope.issueId }];
+    const candidates = noticeCandidateQuery(null, scope).as("inbound_notice_candidates");
+    return db.selectDistinct({ companyId: candidates.action.companyId, issueId: candidates.issueId })
+      .from(candidates);
   }
 
   async function reconcileInboundWakeNotices(input: {
