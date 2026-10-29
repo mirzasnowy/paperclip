@@ -1859,7 +1859,7 @@ async function startServerWithDatabaseTeardown(
     if (config.heartbeatSchedulerEnabled) {
       const worker = heartbeat.registerNativeEnvironmentSettlementWork(deliveryWork,
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby());
-      // Provider release remains owned by drain/shutdown, without gating readiness.
+
       trackHeartbeatSchedulerWork(worker.ready);
     }
     if (config.heartbeatSchedulerEnabled) {

@@ -6327,8 +6327,8 @@ describeEmbeddedPostgres("environmentRuntimeService", () => {
     let confirmed: Awaited<ReturnType<typeof service.getLeaseById>>;
     const call = vi.fn(async (_id: string, method: string) => {
       if (method !== "environmentDestroyLease") throw new Error(`Unexpected method ${method}`);
-      // Model recovery taking over an expired attempt and committing its receipt
-      // while the original provider request is still unresolved.
+
+
       const current = (await service.getLeaseById(seeded.reusableLease.id))!;
       const attemptId = randomUUID();
       await db.update(environmentLeases).set({ status: "pending_cleanup",

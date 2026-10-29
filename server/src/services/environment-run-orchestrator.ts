@@ -678,7 +678,7 @@ export function environmentRunOrchestrator(
     failureReason?: string;
     /** Explicit Stop during adapter startup; never used for ordinary cleanup. */
     cancelActiveWork?: boolean;
-    /** Background settlement must honor each lease's saved cleanup deadline. */
+
     respectCleanupDeadlines?: boolean;
     /** Explicit paperclip_runner resource lifecycle. Omitted for legacy adapters. */
     providerResourceDisposition?: ProviderResourceDisposition;

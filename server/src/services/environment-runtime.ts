@@ -4054,8 +4054,8 @@ export function environmentRuntimeService(
       eq(environmentLeases.status, input.leaseRow.status),
       input.scopeCondition,
       sql`coalesce(${environmentLeases.metadata}->>'pendingCleanupInFlight', 'false') != 'true'`,
-      // Scope closures must leave live holders alone. A run's own explicit
-      // release keeps its existing authority, fenced to that exact run binding.
+
+
       input.runId ? undefined : sql`NOT EXISTS (
         SELECT 1 FROM ${heartbeatRuns}
         WHERE ${heartbeatRuns.id} = ${environmentLeases.heartbeatRunId}
@@ -4266,8 +4266,8 @@ export function environmentRuntimeService(
               inArray(environmentLeases.status, ["active", "pending_cleanup"]),
               sql`coalesce(${environmentLeases.metadata}->>'pendingCleanupInFlight', 'false') = 'false'`,
               releaseOptions?.respectCleanupDeadlines ? or(dueRunLeaseReleaseCondition(),
-                // This call just prepared a new stop intent. It may make the
-                // first attempt immediately, but cannot inherit an older retry.
+
+
                 typeof preparedStopAttemptId === "string" ? and(
                   sql`${environmentLeases.metadata}->>'pendingCleanupAttemptId' = ${preparedStopAttemptId}`,
                   sql`${environmentLeases.metadata}->>'pendingCleanupRetryAfterMs' = '0'`,

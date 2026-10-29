@@ -3,8 +3,8 @@ import { environmentLeases, type Db } from "@paperclipai/db";
 import type { ProviderResourceDisposition } from "./environment-runtime.js";
 import { ENVIRONMENT_CLEANUP_RETRY_MS, pendingCleanupDeadlineSql } from "./environment-cleanup-state.js";
 
-/** The release owner also accepts its stop/retention handoffs. Ordinary
- * pending cleanup belongs to the cleanup worker; retained success is history. */
+
+
 export function pendingRunLeaseReleaseCondition(destroy: boolean) {
   return or(eq(environmentLeases.status, "active"),
     and(eq(environmentLeases.status, "pending_cleanup"),
