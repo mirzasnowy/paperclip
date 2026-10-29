@@ -666,7 +666,7 @@ export function routineService(
     pluginWorkerManager: deps.pluginWorkerManager,
   });
 
-  // The deadline and dispatcher must agree on which saved schedules can run.
+
   const scheduledTriggerEligibility = () => and(
     eq(routineTriggers.kind, "schedule"),
     eq(routineTriggers.enabled, true),
@@ -1788,8 +1788,8 @@ export function routineService(
         }
       }
 
-      // The scheduler reloads its own claimed deadline after a pass. A manual
-      // invocation naming a schedule can also advance it and needs a commit hint.
+
+
       if (input.trigger?.kind === "schedule" && input.nextRunAtOverride === undefined) {
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.routineSchedules);
       }
@@ -3120,7 +3120,7 @@ export function routineService(
         .innerJoin(companies, eq(routines.companyId, companies.id))
         .where(scheduledTriggerEligibility())
         .orderBy(asc(routineTriggers.nextRunAt)).limit(1);
-      // Include overdue rows: a capped catch-up pass can leave more work owing.
+
       return row?.at?.getTime() ?? null;
     },
 
@@ -3151,8 +3151,8 @@ export function routineService(
 
       let triggered = 0;
       for (const row of due) {
-        // Once claimed, finish this trigger's admitted batch. Unclaimed rows stay
-        // durable for resume/restart if drain or shutdown interrupts the pass.
+
+
         if (!canContinue()) break;
         if (!row.trigger.nextRunAt || !row.trigger.cronExpression || !row.trigger.timezone) continue;
 
