@@ -2139,7 +2139,7 @@ describeEmbeddedPostgres("tool access service", () => {
         replacementFinished = replacement;
         await waitForFirstReplacementLock(replacementPid);
         expect(replacementSettled).toBe(false);
-  
+
         releaseFirstReplacement();
         await firstReplacement;
         await membershipIsLocked;
@@ -2170,7 +2170,7 @@ describeEmbeddedPostgres("tool access service", () => {
             subjectId: "departing-user",
           }),
         ]);
-  
+
         const fetchMock = vi
           .spyOn(globalThis, "fetch")
           .mockResolvedValue(
