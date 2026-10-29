@@ -70,7 +70,7 @@ describe.skipIf(!support.supported)("scheduled deadline database queries", () =>
     expect(await heartbeatService(db).nextIssueMonitorAt()).toBe(at(-1).getTime());
     expect(tasks.get(DELIVERY_QUEUES.issueMonitors)!.nextRunAt!()).toBe(now + 60_000);
     await db.execute(sql`truncate table companies restart identity cascade`);
-    vi.setSystemTime(at(2)); // Allow the retained overdue batch's retry spacing.
+    vi.setSystemTime(at(2));
     for (const task of tasks.values()) await task.run(new AbortController().signal);
     for (const task of tasks.values()) expect(task.nextRunAt!()).toBeNull();
   });

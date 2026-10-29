@@ -18,8 +18,8 @@ export function nativeEnvironmentSettlementDisposition(run: Run, succeeded: bool
 type Entry = { id: string; companyId: string; issueId: string; dueAt: number };
 type Settlement = { runId: string; companyId: string; agentId: string; succeeded: boolean };
 
-/** Native finalization owes a release, not a new teardown protocol. The existing
- * run-control/environment owners retain workspace, stop and provider checks. */
+
+
 export function nativeEnvironmentSettlementWork(db: Db, settle: (input: Settlement) => Promise<void>) {
   const retryFloors = new Map<string, Entry>();
   const matches = (item: Entry, scope?: NativeEnvironmentSettlementScope) => !scope || item.companyId === scope.companyId
@@ -86,14 +86,14 @@ export function nativeEnvironmentSettlementWork(db: Db, settle: (input: Settleme
     if (!pending || pending.dueAt > Date.now()) return pending;
     if (signal?.aborted) throw new Error("Native environment settlement stopped");
     await settle({ runId: row.id, companyId: row.companyId, agentId: row.agentId, succeeded: row.phase === "committed" });
-    // The release API logs individual provider failures. Its return is not an
-    // acknowledgment: only the owning lease records can discharge this work.
+
+
     const [remaining] = await candidates(scope);
     const next = remaining ? await entry(remaining) : null;
     if (!next) { retryFloors.delete(current.id); return null; }
     const floor = Date.now() + 30_000;
-    // A scope reload is a hint, not authority to erase the last attempt's
-    // cooldown. Keep only this process's retry floor; saved deadlines stay live.
+
+
     retryFloors.set(current.id, { ...next, dueAt: floor });
     return { ...next, dueAt: Math.max(next.dueAt, floor) };
   }

@@ -72,3 +72,11 @@ registers the worker before sending, observes the saved claim while the provider
 receipt is held, and verifies that the committed receipt disarms recovery. Existing
 Teams authority, consent and publication cases remain covered. See the
 [audit and failure ledger](plans/2026-10-25-teams-attempt-recovery-sleep-audit.md).
+
+
+Current parent acceptance is recorded in the audit's
+[current-parent section](plans/2026-10-25-teams-attempt-recovery-sleep-audit.md#current-consent-parent-preparation-and-acceptance-october-28):
+239 selected cases pass, with the old inherited rate-window CI failure and its
+already-landed fixture fix preserved. Actual landed-parent reconciliation and
+fresh remote checks remain merge requirements; historical counts are not current
+full-workspace verification.

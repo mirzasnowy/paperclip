@@ -172,8 +172,8 @@ async function rejectPendingOAuthInteraction(
           result: {
             version: 1,
             outcome: "rejected",
-            // Paperclip's own words: the provider's explanation is untrusted and
-            // this reason is rendered in the thread (PAP-17108).
+
+
             reason:
               "Authorization was declined or cancelled in the provider's window",
           },

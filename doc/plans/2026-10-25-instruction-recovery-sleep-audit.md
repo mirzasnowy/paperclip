@@ -162,7 +162,7 @@ No provider is launched to recover a captured legacy instruction candidate.
 Current PR CI and fresh review are still required. Host suspension, database
 suspension, external wake delivery, the two remaining instruction duties, the
 other run-reaper duties, and the complete original stack inventory remain open.
-This stack has no merge authorization.
+The later stack campaign authorizes an ordinary protected merge only after exact-current-head Greptile 5/5, clean CI, and required review findings are resolved.
 
 ## Foreground ownership correction (2026-10-27)
 
@@ -215,3 +215,150 @@ failed test cannot leave retry debt in the next test's global reconstruction.
 All 38 instruction-copy cases pass on a fresh PostgreSQL 17 database with the
 owner branch's 396 migrations. The controlled reproduction fails without the
 fixture correction. No production retry code, timeout, or assertion is weakened.
+
+
+## Current parent composition and acceptance (2026-10-28)
+
+The existing slice was integrated with the updated cancellation parent
+`d9da519b32bd7e5ecaf2156c3de217fc47187f50` by a normal merge, yielding
+`77cd93fa08310ecdc834964e9a4326f794c2be87`. All substantive owned edits remain
+identical after excluding unchanged context and hunk coordinates. The literal
+patch comparison initially rejected the updated context; zero-context comparison
+and inspection establish that the edits themselves are unchanged. Every unrelated
+upstream blob is preserved. The entire database source tree is identical to the
+parent: this slice has no migration or table.
+
+All six complete files passed, **268 cases with no skips**, in 46.26 seconds:
+
+| Complete file | Passing cases |
+| --- | ---: |
+| Instruction working copies and captured commits | 38 |
+| Persistent agent directory working copies | 87 |
+| Server startup and feedback export | 53 |
+| Heartbeat instruction-copy boundary | 14 |
+| Heartbeat recovery | 45 |
+| Heartbeat run lifecycle | 31 |
+
+Instruction copies, directory copies, and recovery each used a separate newly
+created PostgreSQL database migrated through the current 0404 parent history
+before fixture setup. The lifecycle suite retained its real embedded database.
+No reused filesystem database, skipped suite, increased timeout, or narrowed
+case-name selection is counted as acceptance. The earlier failures above remain
+part of the record.
+
+Database build, production server typecheck and build, module boundaries, target
+migration-order validation, and all three fresh migrations passed. File collection
+and replacement stay outside the short pending-state transaction. Foreground
+ownership, the persisted next deadline, attempt cap, authorization, exact-byte
+receipt and drain/shutdown contracts retain their owners. No provider turn is
+started to replay captured bytes.
+
+This is local worker and integration evidence. Final publication must carry the
+actual landed parent ancestry, followed by fresh current-head CI and review.
+It does not establish host or database suspension or a durable Cloud alarm.
+
+
+## Review style correction and interrupted CI
+
+Greptile reviewed `cffe70b42b7b41f0b69c548dc47b8f1d5b753de5` at 5/5 but left
+an actionable P2: CONTRIBUTING.md prohibits new code comments. Seven new
+comment lines in the instruction-copy owner and tests are removed. The
+foreground ownership, attempt-cap barrier and fixture isolation explanations
+remain in this audit. TypeScript parsing verifies that both affected files have
+exactly the same non-comment token stream before and after removal. All other
+source bytes remain unchanged; this does not reinterpret the 268-case source
+acceptance as a new whole-suite run. Fresh head CI and Greptile are required.
+
+The first cffe CI server shard 9 stopped after receiving a runner shutdown
+signal at 23:50:45Z, then reported cancellation at 23:50:57Z. It has no final
+assertion verdict and is not counted as passing. The log is retained; no old-head
+retry is requested because the required style correction creates a new head.
+The full new-head CI must run independently.
+
+## Current master and append-only parent adoption
+
+The parent retry-cancellation slice now carries actual #17666 squash
+`7afee8f0622e273d10506b0febfb68f143d168b1`, the new Coordinator and Runner
+changes, and the regenerated append-only migration 0406. A clean normal merge
+preserves both complete added/removed patches and every unrelated upstream blob.
+The complete database subtree equals parent
+`48b3fcb83f305616df02a4337a42ec0867bb4b80`; this slice adds no migration.
+The parent audit follow-up changes documentation only.
+
+Source `654c4694d5fad8ebfcc1219bc4a76ec94f4516b8` passes all **268 cases in six
+complete files**, with no skipped cases, in 45.38 seconds. Four separate fresh
+PostgreSQL 17 databases migrated through 0406 prevent fixture interference.
+Instruction, directory, and recovery suites use their supported external paths.
+The embedded-only lifecycle suite temporarily used its own external fixture
+because this host cannot start more embedded clusters. Its fixture import was
+restored byte for byte afterward. All assertions and original timing limits were
+unchanged. This is qualified external-database acceptance; fresh CI still must
+pass with the original embedded fixture. Database build, server typecheck/build,
+module boundaries, target migration order, and all four fresh migrations pass.
+No new code comments remain relative to this parent.
+
+Prior head `a1a0ae5b02e8a650408bf4c55ae99071c3bff59c` had passing CI, Greptile
+5/5 and Ponytail 5/5. Those results become historical when the new head is
+published. Keep the old runner interruption and all earlier failures in the
+ledger. The current parent must merge first, and the new published head needs
+fresh exact-head reviews and CI. These results do not establish deployed sleep.
+
+### Local validation command correction before publication
+
+A cloned local runner selected its first command by position, but this slice's
+first command was the database build rather than migration order. It replaced
+the build with a pnpm filter that matched no projects and exited zero. That was
+not evidence of a database build. The migration-order command also retained old
+revision arguments. The next unpublished slice exposed the error when its first
+fresh migration could not find compiled migration assets. Publication stopped.
+The original command receipts and logs remain; no product pass is inferred from
+the no-match command or the failed migration.
+
+The runner now selects commands by their names. It executed the actual database
+build and migration check against the exact current parent and head. The full
+six-file acceptance then ran again at audit-only descendant
+`b25636e6261f98f1e53ff28a1f259ea03b9c41a8`: **268 cases pass without skips in
+40.97 seconds**, using four new disposable databases migrated through 0406.
+Types, server build, boundaries, and the actual current migration-order check
+also pass. The lifecycle fixture qualification above still applies; the file was
+restored exactly. The already-published parent used a different, correct command
+layout and was not affected by this runner error.
+
+## Bounded retry-cancellation parent acceptance
+
+A clean normal merge adopts published parent
+`405e533394b26215e22d0452e9b0207d3f784a79`, including its bounded reconstruction
+and durable browser reply check. Both complete added/removed patches and every
+unrelated upstream blob are preserved. The entire database subtree still equals
+that parent: this slice has no schema or migration change.
+
+Source `9fb75e508f06b05b740099403ce021a61e7c6603` passes all **268 cases in six
+complete files**, without skips, in 41.89 seconds. Four unused fresh PostgreSQL 17
+databases migrated through 0406 isolate the fixtures. The same qualified temporary
+external lifecycle fixture is restored byte for byte. Actual database build,
+server types/build, module boundaries and exact-current migration order pass.
+The earlier local runner failure and corrected evidence remain in the preceding
+section; this run uses commands selected by name.
+
+Stacked publication may run this non-migration slice's independent CI while the
+parent finishes. It does not allow merging into an unmerged parent. At merge,
+the exact reviewed parent must have landed, the target must be master, and the
+actual combined tree must preserve the complete owned patch and upstream changes.
+The subsequent index-bearing child still needs the actual parent migration squash
+ancestry before publication. Old reviews on this slice's prior head do not count
+for the new published head.
+
+## Landed retry-cancellation squash ancestry
+
+Parent #17667 merged as `27270e9bf8b7a294cf03f8b84f4857f1b1ff05c7` after
+all 58 checks and both current-head reviews passed. Its entire tree equals the
+already-adopted reviewed parent `405e533394b26215e22d0452e9b0207d3f784a79`.
+The ordinary merge probe still found nine overlapping text conflicts from the
+squashed ancestry. A normal merge records that actual ancestry. The exact parent
+was already an ancestor of the accepted descendant; restoring the accepted
+versions of the inspected conflicts leaves the **entire result tree identical**
+to the previously published `fc5cee9fa00923a2d6fba27386ad7a6ab0ef101e`.
+This proves all automatic and manual resolutions preserve tested code and parent
+changes. The follow-up here changes documentation only. The 268-case source
+acceptance and database proofs remain applicable, but the new SHA needs fresh
+CI and exact-head reviews. Prior stacked-head results are not reused as passes.

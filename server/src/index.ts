@@ -7,7 +7,9 @@ import { registerDecisionTargetWork } from "./services/decision-target-work.js";
 import { registerDecisionEffectRecoveryWork } from "./services/decision-effect-recovery-work.js";
 import { registerDecisionExpiryWork } from "./services/decision-expiry-work.js";
 import { registerDecisionContinuationWork } from "./services/decision-continuation-work.js";
+
 import { registerDecisionArchiveDeliveryWork } from "./services/decision-archive-delivery-work.js";
+
 import { registerToolReviewProjectionWork } from "./services/tool-review-projection-work.js";
 import { registerToolReviewInterruptionWork } from "./services/tool-review-interruption-work.js";
 import { registerToolReviewRecoveryWork } from "./services/tool-review-recovery-work.js";
@@ -45,7 +47,7 @@ import { caseHandoffDeliveryService } from "./services/case-handoff-delivery.js"
 import { registerScheduledWork } from "./services/scheduled-work.js";
 import type { createDeliveryWorkCoordinator } from "./services/delivery-work-coordinator.js";
 import { registerTerminalWorkspaceWork, TERMINAL_WORKSPACE_RETRY_MS } from "./services/terminal-workspace-work.js";
-import { isIdleTaskDrainActive, beginIdleTrackedWork, trackIdleWork } from "./services/task-admission.js";
+import { isIdleTaskDrainActive, beginIdleTrackedWork, trackIdleWork, registerTaskDrainExpiryWork } from "./services/task-admission.js";
 import { markIdleStartupComplete, registerIdleLocalWorkProbe } from "./services/idle-local-work.js";
 import { clearIdleBackupWakeRequired, idleBackupWakeMarker, markIdleBackupWakeRequired, verifyIdleDatabaseBackup } from "./services/idle-database-backup.js";
 import { cloudWarmStandbyServerOptions } from "./middleware/cloud-warm-standby.js";
@@ -97,6 +99,7 @@ import {
   companyMemberships,
   instanceUserRoles,
   closeLivenessDb,
+  closeCheckpointDb,
 } from "@paperclipai/db";
 import detectPort from "detect-port";
 import { createApp } from "./app.js";
@@ -703,7 +706,7 @@ async function startServerWithDatabaseTeardown(
   const closeDatabaseClients = async () => {
     setSentryRunLinkResolver(null);
     const clients = pluginMigrationDb === db ? [db] : [db, pluginMigrationDb];
-    await Promise.all([...clients.map((client) => endDatabaseClient(client, 5)), closeLivenessDb(db, 5)]);
+    await Promise.all([...clients.map((client) => endDatabaseClient(client, 5)), closeLivenessDb(db, 5), closeCheckpointDb(db, 5)]);
   };
   startupDatabase.close = closeDatabaseClients;
   setSentryRunLinkResolver(createSentryRunLinkResolver(db));
@@ -1363,6 +1366,16 @@ async function startServerWithDatabaseTeardown(
     resolveNativeQuestion: (interaction) => deliverNativeQuestionResponse(db as any, interaction),
   });
   const deliveryWork = app.locals.deliveryWork as ReturnType<typeof createDeliveryWorkCoordinator>;
+  if (config.nativeHarnessBackupExpirationEnabled) {
+    nativeHarnessBackupExpiration.registerCheckpointExpiration(deliveryWork);
+  }
+  const taskDrainExpiryWork = registerTaskDrainExpiryWork(deliveryWork, () => {
+    if (heartbeatSchedulerStopped || isWarmStandby()) return;
+    trackHeartbeatSchedulerWork(accountingHeartbeat.resumeQueuedRunsAfterDrain().catch(err => {
+      logger.error({ err }, "failed to resume queued work after task drain expiry");
+    }));
+  });
+  server.on("close", () => { void taskDrainExpiryWork.stop(); });
   const executionSchedule = executionControlSchedule(db);
   const workspaceRecoveryRuntime = environmentRuntimeService(db, { pluginWorkerManager });
   const workspaceRecoveryWork = registerWorkspaceRecoveryWork(db, deliveryWork, workspaceRecoveryRuntime,
@@ -1820,7 +1833,7 @@ async function startServerWithDatabaseTeardown(
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby());
       unsubscribeNativeWorkspaceFinalization = worker.stop;
       server.on("close", worker.stop);
-      // Copy-back remains owned through drain/shutdown without delaying readiness.
+
       trackHeartbeatSchedulerWork(worker.ready);
     }
     if (config.heartbeatSchedulerEnabled) {
@@ -1828,39 +1841,39 @@ async function startServerWithDatabaseTeardown(
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby());
       unsubscribeRetainedNativeSessionCleanup = worker.stop;
       server.on("close", worker.stop);
-      // Physical cleanup can outlive a provider timeout. Keep owning it through
-      // drain/shutdown without making HTTP readiness wait for that callback.
+
+
       trackHeartbeatSchedulerWork(worker.ready);
     }
     if (config.heartbeatSchedulerEnabled) {
       const worker = heartbeat.registerExternalConversationSettlementWork(deliveryWork,
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby());
-      // Endpoint/task locks must not gate HTTP readiness; shutdown still joins.
+
       trackHeartbeatSchedulerWork(worker.ready);
     }
     if (config.heartbeatSchedulerEnabled) {
       const worker = heartbeat.registerNativeRecoveryNoticeWork(deliveryWork,
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby());
-      // Notice settlement may wait on task locks; retain shutdown ownership.
+
       trackHeartbeatSchedulerWork(worker.ready);
     }
     if (config.heartbeatSchedulerEnabled) {
       const worker = heartbeat.registerNativeEnvironmentSettlementWork(deliveryWork,
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby());
-      // Provider release remains owned by drain/shutdown, without gating readiness.
+
       trackHeartbeatSchedulerWork(worker.ready);
     }
     if (config.heartbeatSchedulerEnabled) {
       const worker = heartbeat.registerNativeRunProjectionWork(deliveryWork,
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby());
-      // A repair can wait on a run lock; own it through shutdown without
-      // making HTTP readiness wait for that application transaction.
+
+
       trackHeartbeatSchedulerWork(worker.ready);
     }
     if (config.heartbeatSchedulerEnabled) {
       const worker = heartbeat.registerNativeResultCommitWork(deliveryWork,
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby());
-      // Result settlement can wait on an execution lock; HTTP readiness need not.
+
       trackHeartbeatSchedulerWork(worker.ready);
     }
     if (config.heartbeatSchedulerEnabled) await heartbeat.registerNativeStatusReassessmentWork(deliveryWork,
@@ -2200,6 +2213,7 @@ async function startServerWithDatabaseTeardown(
   ) => {
     await systemdNotify(["--stopping", `--status=Stopping after ${signal}`]);
     heartbeatSchedulerStopped = true;
+    await taskDrainExpiryWork.stop();
     clearInterval(skillVersionRetentionInterval);
     clearTimeout(skillVersionRetentionStartup);
     clearTimeout(skillVersionRetentionContinuation);

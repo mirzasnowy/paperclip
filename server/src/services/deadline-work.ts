@@ -9,6 +9,7 @@ export function registerDeadlineWork(
     next: () => Promise<number | null>;
     canRun: () => boolean;
     retryMs: number;
+    continuationMs?: number;
     // Optional batching latency for notifications; already-known deadlines still preempt it.
     notificationCoalesceMs?: number;
   },
@@ -29,7 +30,8 @@ export function registerDeadlineWork(
         return;
       }
       const generation = ++requested;
-      earliest = Date.now() + task.retryMs;
+      const startedAt = Date.now();
+      earliest = startedAt + task.retryMs;
       await task.run(signal);
       if (signal.aborted || !task.canRun()) { next = null; return; }
       const deadline = await task.next();
@@ -38,7 +40,8 @@ export function registerDeadlineWork(
       // in-memory retry runs until admission reopens.
       if (!task.canRun()) { next = null; return; }
       // Back off failed or still-overdue work, not a successfully read future deadline.
-      if (deadline === null || deadline > Date.now()) earliest = 0;
+      earliest = deadline === null || deadline > Date.now()
+        ? 0 : startedAt + (task.continuationMs ?? task.retryMs);
       next = deadline === null ? null : Math.max(earliest, deadline);
       coalesceUntil = Date.now() + (task.notificationCoalesceMs ?? 0);
       reconciled = generation;

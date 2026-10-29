@@ -392,7 +392,7 @@ describe("adapter device-login routes", () => {
 
   beforeAll(async () => {
     vi.resetModules();
-    // Finish the cold route import before tests mutate the shared actor/store.
+
     await loadRouteModules();
   }, 60_000);
 

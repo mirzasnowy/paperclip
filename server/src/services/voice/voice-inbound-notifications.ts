@@ -11,5 +11,5 @@ export function voiceInboundScope(hint: string): VoiceInboundScope | undefined {
 export async function notifyVoiceInbound(tx: object, scope?: VoiceInboundScope) {
   const hint = scope ? `${scope.kind}:${scope.id}` : "*";
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.voiceInboundCleanup, hint);
-  await notifyDeliveryWork(tx, DELIVERY_QUEUES.voiceInboundRetention, hint);
+  if (scope?.kind === "admission") await notifyDeliveryWork(tx, DELIVERY_QUEUES.voiceInboundRetention, hint);
 }
