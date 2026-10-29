@@ -365,6 +365,20 @@ describe("compact agent configuration", () => {
     expect(api.agents.syncSkills).not.toHaveBeenCalled();
   });
 
+  it("restores a revision with unpinned skills and mixed enabled/disabled channel resources", async () => {
+    api.agents.skills.mockResolvedValue({ desiredSkills: ["paperclip"], desiredSkillEntries: [{ key: "paperclip", versionId: null }], warnings: [] });
+    api.channels.listResources.mockResolvedValue([{ id: resourceId, enabled: true }, { id: agentId, enabled: false }]);
+    const saved = await snapshot();
+    const compact = compactAgentConfiguration(saved.document);
+    expect(compact.spec.channels![0].resources).toHaveLength(1);
+    expect(planAgentConfiguration(saved, compact)).toEqual([]);
+    compact.spec.revisions = { restore: "revision" };
+    await saveAgentConfiguration(saved, compact, receipt, progress);
+    expect(api.agents.rollbackConfigRevision).toHaveBeenCalledWith(agentId, "revision", "company");
+    expect(api.agents.syncSkills).not.toHaveBeenCalled();
+    expect(api.channels.updateResources).not.toHaveBeenCalled();
+  });
+
   it("binds a profile by key without copying or rewriting its definition", async () => {
     api.tools.listProfiles.mockResolvedValue({ profiles: [profile("read", false)] });
     const saved = await snapshot();
