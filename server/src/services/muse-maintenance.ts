@@ -102,8 +102,8 @@ export function startMuseMaintenance(
               if (pending.length < 100) break;
               after = pending.at(-1)!.id;
             }
-            // A bounded owner batch can leave real debt. A running assignment or
-            // a fenced private-worker hold alone cannot keep this retry armed.
+
+
             if ((await pendingMuseTerminalBindings(db, scope)).length) requested.add(hint);
           }
         }
@@ -120,7 +120,7 @@ export function startMuseMaintenance(
         throw error;
       }
     },
-    // Retain the exact hints across drain without passive database reads.
+
     hasPending: async () => false,
     nextRunAt: () => requested.size ? Math.min(Date.now() + 5_000, nextDeadline ?? Infinity) : nextDeadline,
   });

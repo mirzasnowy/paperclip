@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { agents, authUsers, companies, companyMemberships, createDb, closeRegisteredClients,
   externalAgentHolds, heartbeatRuns, issues, completionContracts, nativeRunResults, nativeRunFinalizations, museAgentBindings as bindings,
   museRunnerAssignments as assignments, museRunnerOperations as operations, type Db } from "@paperclipai/db";
+import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
 import { projectCommittedRun } from "../services/native-runtime/native-run-projection.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { museIdentity, museCredentialHash } from "../services/muse-identity.js";
@@ -18,8 +19,8 @@ import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database
 import { setTimeout as delay } from "node:timers/promises";
 import { externalOperationDigest, type ExternalProviderOperation } from "../vendor/paperclip-runner/index.js";
 
-/** Actual broker, transaction signals and maintenance. Provider receipts are
- * synthetic protocol fixtures, not evidence of deployed Muse qualification. */
+
+
 describe("Muse terminal settlement lifecycle", () => {
   let db: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
@@ -71,8 +72,8 @@ describe("Muse terminal settlement lifecycle", () => {
     const f = await active();
     await f.broker.act(f.subject, { version: 1, command: "accept", assignmentId: f.assignment.id, requestId: randomUUID() });
     await f.broker.act(f.subject, { version: 1, command: "finish", assignmentId: f.assignment.id, requestId: randomUUID(), result: {} });
-    // The active transport has its own replay duty. Close it before measuring
-    // terminal settlement; late receipts still use the saved durable identity.
+
+
     await f.detach();
     return f;
   }
@@ -103,6 +104,25 @@ describe("Muse terminal settlement lifecycle", () => {
     detachers.push(detach);
     return {...f,runId,issue,port,ref,assignment,sent,detach};
   }
+  it("ignores routine company-only finalization hints and still settles a committed Muse run", async () => {
+    const f = await acceptedResult();
+    await start(); await idle(); await quiet();
+    const previous = db.$client.options.debug, queries: string[] = [];
+    db.$client.options.debug = (_id, query) => queries.push(query);
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await db.transaction(tx => notifyNativeFinalizationWork(tx, { companyId: f.company.id }));
+        await idle();
+      }
+      expect(queries.filter(query => query.includes('"muse_runner_assignments"'))).toEqual([]);
+    } finally { db.$client.options.debug = previous; }
+    expect((await readAssignment(f.assignment.id)).finalizedAt).toBeNull();
+    await lifecycle().setRunStatus(f.runId, "succeeded", { finishedAt: new Date() });
+    await idle();
+    expect((await readAssignment(f.assignment.id)).finalizedAt).not.toBeNull();
+    expect(errors).toEqual([]); await quiet();
+  });
+
   it("settles Muse from the real terminal run producer after becoming idle", async () => {
     const f = await acceptedResult();
     await start(); await idle(); await quiet();
@@ -187,8 +207,8 @@ describe("Muse terminal settlement lifecycle", () => {
   it("limits a committed terminal hint to its original scope", async () => {
     const first = await acceptedResult(), other = await acceptedResult();
     await start(); await idle();
-    // Reconstruct unsignalled historical debt in a different company. A scoped
-    // producer must not turn into an all-tenant sweep; startup covers that debt.
+
+
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() })
       .where(eq(heartbeatRuns.id, other.runId));
     await lifecycle().setRunStatus(first.runId, "succeeded", { finishedAt: new Date() });
@@ -227,7 +247,7 @@ describe("Muse terminal settlement lifecycle", () => {
     await lifecycle().setRunStatus(f.runId, "succeeded", { finishedAt: new Date() });
     await vi.waitFor(async () => { await vi.advanceTimersByTimeAsync(0); expect(errors.length).toBeGreaterThan(0); });
     admitted = false;
-    // The failed attempt retains producer intent until the next reconciliation.
+
     await vi.advanceTimersByTimeAsync(5000);
     await vi.waitFor(() => expect(idleWorkSnapshot().active).toBe(0));
     expect((await readAssignment(f.assignment.id)).finalizedAt).toBeNull(); await quiet();
@@ -257,7 +277,7 @@ describe("Muse terminal settlement lifecycle", () => {
       await idle();
       expect((await readAssignment(first.assignment.id)).finalizedAt).not.toBeNull();
       expect((await readAssignment(second.assignment.id)).finalizedAt).not.toBeNull();
-      // Aborting an in-flight sweep can report its cancellation before restart.
+
       if (!shutdown) expect(errors).toEqual([]);
       await quiet();
     } finally { release(); }
@@ -265,8 +285,8 @@ describe("Muse terminal settlement lifecycle", () => {
 
   it("wakes from the actual committed run projection owner", async () => {
     const f = await acceptedResult();
-    // Restore an accepted durable native result; this tests projection-to-owner
-    // delivery, not result validation (covered by native control-plane tests).
+
+
     const contractId = randomUUID();
     await db.insert(completionContracts).values({ id: contractId, companyId: f.company.id, issueId: f.issue.id,
       revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "settlement-test", risk: "standard",
@@ -313,8 +333,8 @@ describe("Muse terminal settlement lifecycle", () => {
     const f = await active();
     await f.broker.act(f.subject, { version: 1, command: "accept", assignmentId: f.assignment.id, requestId: randomUUID() });
     const requestId = randomUUID(), input = { result: {} };
-    // Reconstruct a saved in-flight finish. Admission/dispatch are covered by the
-    // control-plane suite; this test exercises late receipt settlement after Stop.
+
+
     await db.insert(operations).values({ companyId: f.company.id, assignmentId: f.assignment.id, requestId,
       digest: externalOperationDigest("finish", input), command: { ...f.ref, requestId, action: "finish", input,
         digest: externalOperationDigest("finish", input) }, status: "pending" });
@@ -333,8 +353,8 @@ describe("Muse terminal settlement lifecycle", () => {
 
   it("reconstructs timestamp settlement on an original revoked binding", async () => {
     const f = await acceptedResult();
-    // Saved independent stop evidence means revoke need not fence this settled
-    // assignment. Its run's later terminal projection still owes a timestamp.
+
+
     await db.update(externalAgentHolds).set({ workerUnknown: false, releasedAt: new Date() })
       .where(eq(externalAgentHolds.assignmentId, f.assignment.id));
     await f.broker.revoke(f.company.id, f.agent.id, f.operatorId);
@@ -349,7 +369,7 @@ describe("Muse terminal settlement lifecycle", () => {
 
   it("does not fence successor work while repairing historical failed settlement", async () => {
     const f = await acceptedResult();
-    // Restore historical finalization debt with separately saved stop evidence.
+
     await db.update(externalAgentHolds).set({ workerUnknown: false, releasedAt: new Date() })
       .where(eq(externalAgentHolds.assignmentId, f.assignment.id));
     await lifecycle().setRunStatus(f.runId, "failed", { finishedAt: new Date() });

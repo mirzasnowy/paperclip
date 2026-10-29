@@ -386,16 +386,16 @@ export function createHeartbeatScheduling(
     }
 
     const recoveryKey = `issue-monitor-recovery:${input.claimed.id}:${input.scheduledAtIso}`;
-    // The limit reason may change before a failed clear is retried. The
-    // scheduled monitor identifies the obligation, including older receipts.
+
+
     const acceptedRecoveryKeys = [
       recoveryKey,
       `issue-monitor-recovery:${input.claimed.id}:max_attempts_exhausted:${input.scheduledAtIso}`,
       `issue-monitor-recovery:${input.claimed.id}:timeout_exceeded:${input.scheduledAtIso}`,
     ];
-    // A saved key alone does not deduplicate enqueueWakeup. Reuse a receipt
-    // bound to an admitted run before retrying a handoff after restart. The
-    // monitor claim guard fences competing claimants at queue admission.
+
+
+
     const [accepted] = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests)
       .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, agentWakeupRequests.runId),
         eq(heartbeatRuns.companyId, agentWakeupRequests.companyId),
@@ -496,9 +496,9 @@ export function createHeartbeatScheduling(
       }
     }
 
-    // The schedule is the pending handoff. A crash before admission can retry
-    // it; a crash after admission reuses the existing recovery idempotency key.
-    // Consume only this claim, preserving any monitor installed by the new run.
+
+
+
     const publications: ActivityPublication[] = [];
     const cleared = await db.transaction(async tx => {
       await notifyIssueReviewState(tx, { companyId: input.claimed.companyId, issueId: input.claimed.id });
@@ -831,7 +831,9 @@ export function createHeartbeatScheduling(
         })
         .where(issueMonitorClaimCondition(claimed))
         .returning({ id: issues.id });
-      if (consumed.length === 0) return { outcome: "skipped" as const, reason: "monitor_replaced" };
+      // Admission already accepted the check. A replacement schedule must stay
+      // intact, but losing its consumption fence does not undo that accepted wake.
+      if (consumed.length === 0) return { outcome: "triggered" as const };
 
       await logActivity(db, {
         companyId: claimed.companyId,
@@ -949,7 +951,18 @@ export function createHeartbeatScheduling(
     if (!issue.assigneeAgentId || issue.assigneeUserId) {
       throw conflict("Issue monitor requires an agent assignee");
     }
-    if (!["in_progress", "in_review"].includes(issue.status)) {
+    if (issue.status === "blocked" && actorType === "user" &&
+      normalizeIssueExecutionPolicy(issue.executionPolicy ?? null)?.monitor?.serviceName === PROVIDER_QUOTA_MONITOR_SERVICE_NAME) {
+      // Quota recovery schedules a bounded retry directly, rather than using
+      // ordinary wake admission. It must not consume a blocked task's monitor.
+      throw conflict("Resume this task before checking provider usage.", { code: "blocked_quota_monitor" });
+    }
+    // A human can request one check of a blocked task. Admission still owns
+    // dependencies, recovery, pause and budget gates; automatic ticks stay idle.
+    const allowedStatuses = actorType === "user"
+      ? ["in_progress", "in_review", "blocked"]
+      : ["in_progress", "in_review"];
+    if (!allowedStatuses.includes(issue.status)) {
       throw conflict(
         "Issue monitor can only run while the issue is in progress or in review",
       );
@@ -970,7 +983,7 @@ export function createHeartbeatScheduling(
             sql`${issues.monitorNextCheckAt} is not null`,
             isNull(issues.assigneeUserId),
             sql`${issues.assigneeAgentId} is not null`,
-            inArray(issues.status, ["in_progress", "in_review"]),
+            inArray(issues.status, allowedStatuses),
             or(
               isNull(issues.monitorWakeRequestedAt),
               lt(issues.monitorWakeRequestedAt, staleClaimThreshold),

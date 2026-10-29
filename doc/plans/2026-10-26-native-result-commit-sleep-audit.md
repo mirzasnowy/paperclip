@@ -175,3 +175,66 @@ recovery registered, and shutdown waiting until the held work settles. All 80
 startup tests pass before and after integrating pinned master
 `8548173fc9efdc0fa07644fb92dcc0b6851a95e5`; production server types pass at the
 integrated revision. These lifecycle checks do not establish deployed host sleep.
+
+## Current parent integration and routine-hint regression (2026-10-29)
+
+This slice now incorporates parent #17734 at
+`7df5c9c44ea9e171be3c61b4430d3727b10f3337` through a normal merge. A
+batched tree comparison preserves 1,203 parent-only entries, nine owned-only
+entries, 11,520 identical entries and 12 automatic shared merges. The sole
+manual conflict adds result-commit notification inside the existing ordinary
+issue/run scope guard. Explicit company settings and dedicated result-state
+notifications retain their existing scopes. The entire package tree matches
+the parent, including combined Runner profile 80 and all historical fixtures.
+
+Six added comments in three files were removed with identical nontrivia
+TypeScript token streams; no directive was removed. This includes the readiness
+repair already present in the prior branch: result recovery's first `ready`
+promise is owned by the existing idle/shutdown tracker. It does not block HTTP
+readiness. Its held-callback startup regression remains in the complete startup
+suite. The earlier Greptile 4/5 on commit `656f6722be1aedf3d52b7f853956e15838204278`
+reported that blocking await; it is historical failure evidence, not an unresolved
+finding to waive. The subsequent Greptile service error is not a review pass.
+A fresh review on the final published head is still required.
+
+The new real-database regression submits three routine company-only finalization
+hints to an idle result worker. A controlled baseline moves only result fanout
+outside the guard and leaves all other parent guards intact. The worker issues
+three candidate SELECTs, so the zero-query assertion fails. Restoring production
+bytes passes the same assertion. The real workspace recorder and accepted-result
+writer then produce exactly one committed decision and return to quiet. The
+red phase fails one selected case in 7.35 seconds; green passes it in 6.66 seconds.
+Twenty cases outside the pattern are not included in that focused count. Both
+phases use fresh dedicated PostgreSQL 17 databases and restore the production
+helper byte-for-byte. No test assertion or timeout is relaxed.
+
+### Complete current-source acceptance
+
+Source `2af88fa55f961a74340880240019f6cd31e21bf1` passes **2,429 distinct
+cases in 18 complete files**, with no skips in those files. The 16-file main
+command passes 1,746 cases in 277.97 seconds. Process recovery passes 410 in
+162.42 seconds. External-chat response passes 273 in 53.41 seconds. This includes
+all 21 result-worker cases and 82 startup cases, including held recovery,
+nonblocking readiness and shutdown joins. Production server typechecking, build,
+module boundaries, migration order and the source identity check pass.
+
+Fifteen dedicated PostgreSQL 17 databases use the unchanged migration 413 schema.
+Embedded-only invocations use the existing fresh-per-call recovery helper. All
+temporary imports are restored byte-for-byte and every selected test hash matches
+after completion. No assertion or timeout is relaxed. The readiness thread was
+resolved after matching its existing remote fix to the passing complete startup
+suite. No old review score or service error is treated as current acceptance.
+
+Parent #17734 merged as `a019d00a393b57f531afe8dd8ab0b8a1820d1c4c`, after
+57 clean current-head checks and Greptile 5/5. Its complete reviewed tree equals
+the landed squash. Normal merge `998239b019defe52e7b5d64f884de4e871ccd736`
+adopts that ancestry with this child's complete tested tree unchanged. This
+slice can now target master; fresh exact-head CI and review remain required.
+
+The unchanged parent package tree retains its profile 80 acceptance: 130 passing
+installation/compatibility/transport cases, 22 installed ACPX/Grok contract cases
+and 26 native-provider Rust cases. One existing opt-in closed Pi snapshot case
+was skipped because its distribution root was unset. This does not qualify a
+live Pi installation. Earlier failed commands remain in the record. No full local
+repository suite, live provider qualification, deployed suspension, expanded Cloud
+wake coverage or measured savings is claimed.

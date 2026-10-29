@@ -1,3 +1,4 @@
+import { readRequiredQualityReview } from "../required-quality-review.js";
 import { hasNativeWorkspaceFinalizationOwner } from "./native-workspace-finalization-recovery-state.js";
 import { and, desc, eq, gt, or } from "drizzle-orm";
 import { completionContracts, heartbeatRuns, issueWorkProducts, issues, nativeRunResults,
@@ -46,8 +47,8 @@ function isSupersededSource(
     );
 }
 
-// Workspace recovery still needs this authority guard when reassessment has
-// its own scheduled owner. Avoid evidence classification on that path.
+
+
 export async function nativeStatusReassessmentSourceIsSuperseded(
   db: Db,
   row: NativeStatusReassessmentSource,
@@ -165,9 +166,8 @@ export async function reassessNativeStatusFromSource(
     if (!assessment || !reassessment || !resultRow || !contractRow) {
       throw new Error("native_reconciliation_reassessment_missing");
     }
-    const currentIssue = retiredAutomaticReview
-      ? await db.select().from(issues).where(and(eq(issues.id, row.issueId), eq(issues.companyId, row.companyId))).then((entries) => entries[0])
-      : null;
+    const currentIssue = await db.select().from(issues)
+      .where(and(eq(issues.id, row.issueId), eq(issues.companyId, row.companyId))).then((entries) => entries[0]);
     const readiness = retiredAutomaticReview ? await issueService(db).getDependencyReadiness(row.issueId, db) : null;
     const currentRun = retiredAutomaticReview ? await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, row.runId)).then((entries) => entries[0]) : null;
     const latestContract = retiredAutomaticReview ? await db.select({ id: completionContracts.id }).from(completionContracts)
@@ -208,9 +208,11 @@ export async function reassessNativeStatusFromSource(
     const governanceGate = retiredAutomaticReview && currentIssue
       ? await pendingNativeGovernance({ db, companyId: row.companyId, issueId: row.issueId,
           runId: row.runId, executionState: record(currentIssue.executionState) }) : null;
-    const decision = retiredAutomaticReview && currentIssue
+    const qualityReview = currentIssue ? await readRequiredQualityReview(db, currentIssue) : null;
+    let decision = retiredAutomaticReview && currentIssue
       ? resolveNativeFinalizerStatus({
           hasPendingChildCompletion,
+          requiredQualityReviewSatisfied: qualityReview?.satisfied,
           assessment: reassessment, terminalState: "succeeded", workspaceFinalizeStatus: "succeeded",
           governanceGate,
           completionClaimPolicyAccepted: contractRow.risk === "low" && contractRow.completionAuthority === "agent_claim_policy",
@@ -222,6 +224,10 @@ export async function reassessNativeStatusFromSource(
           facts: { ...facts, hasPendingChildCompletion },
           priorIssueStatus: row.issueStatus as NativeAuthoritativeIssueStatus, agentId: row.agentId,
         });
+    if (decision.statusAction === "done" && qualityReview?.satisfied === false) {
+      decision = resolveNativeFinalizerStatus({ assessment: reassessment, terminalState: "succeeded", workspaceFinalizeStatus: "succeeded",
+        requiredQualityReviewSatisfied: false, priorIssueStatus: row.issueStatus as NativeAuthoritativeIssueStatus, agentId: row.agentId });
+    }
     let committed: Awaited<ReturnType<typeof commitNativeStatusDecision>>;
     try {
       committed = await commitNativeStatusDecision({

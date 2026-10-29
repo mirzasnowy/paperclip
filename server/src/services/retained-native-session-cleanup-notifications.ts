@@ -11,8 +11,8 @@ export function notifyRetainedNativeSessionCleanup(tx: object, scope: RetainedNa
   return notifyDeliveryWork(tx, DELIVERY_QUEUES.retainedNativeSessionCleanup, JSON.stringify({ companyId: scope.companyId, runId: scope.runId, issueId: scope.issueId, agentId: scope.agentId }));
 }
 
-// Local owners release without a database mutation. Their completion is a hint
-// to re-read existing durable work, never authority to perform physical cleanup.
+
+
 const listeners = new WeakMap<object, Set<(scope: RetainedNativeSessionCleanupScope) => void>>();
 export function onRetainedNativeSessionCleanupRelease(db: object, listener: (scope: RetainedNativeSessionCleanupScope) => void) {
   let owned = listeners.get(db);

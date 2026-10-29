@@ -203,3 +203,73 @@ continues to own worker cancellation. The regression proves HTTP readiness and
 subsequent registration proceed while shutdown waits for the held work. All 86
 startup cases pass on the master-integrated branch; no timer or persistence is
 added. Full integrated typechecking and head-specific CI remain separate gates.
+
+## Current parent integration and routine-hint regression (2026-10-29)
+
+This slice incorporates parent #17752 at
+`a49a2dac13b0e1c19da5d3d6b435c781703b1c0b` through a normal merge. A
+batched tree comparison preserves 1,209 parent-only entries, eight owned-only
+entries, 11,524 identical entries and 12 automatic shared merges. Two manual
+paths remain explicit: ordinary notice fanout is inside the existing issue/run
+guard; the chat test's leading import conflict retains all four independent
+imports and removes only the three marker lines. Every other automatically
+merged byte in that test remains intact before comment removal. The complete
+package tree matches parent profile 80, including all historical identities.
+
+Thirteen added comment objects in five files were removed with identical nontrivia
+TypeScript token streams. No directive was removed. Notice settlement retains
+coordinator, issue, run and action lock ordering; exact current incident matching;
+existing action-resolution side effects; and the separate status/effect/resource
+owners. A discovered action ID alone is not authority to resolve a later incident.
+
+The new real-database regression submits three routine company-only finalization
+hints after startup becomes quiet. A controlled baseline moves only notice fanout
+outside the guard and keeps every other parent guard. It issues three candidate
+SELECTs and fails the zero-query assertion. Restoring production bytes passes the
+same assertion. The real notice writer then creates and resolves an action for a
+committed run, returns outcome `restored`, and settles back to quiet. Red fails one
+selected case in 7.46 seconds; green passes that same case. Twenty-two cases outside
+the focused pattern are not counted as passing there. Both phases use fresh
+dedicated PostgreSQL 17 databases and restore the production helper exactly.
+
+The complete main command passes 1,873 cases in 21 files in 309.69 seconds, with
+no skips. Process recovery and external-chat response run in separate database
+phases. The giant chat integration file is intentionally a focused selection,
+including the real reply/notice row-lock regression and related provider and
+current-authority cases; unselected chat cases do not constitute acceptance.
+All test assertions and timeouts are unchanged.
+
+### Complete current-source acceptance
+
+Source `730e00a7b007a36d188ca0a328ef050d3a25d1ee` passes **2,556 cases
+in 23 complete files**, with no skips in those files. The main command passes
+1,873 cases in 21 files in 309.69 seconds. Process recovery passes 410 in 163.54
+seconds; external-chat response passes 273 in 53.48 seconds. A separate focused
+chat selection passes 18 cases in 13.44 seconds, including the actual reply/notice
+row-lock race, Slack/Telegram recovery, current-authority refusals, canonical
+response binding and internal GitHub navigation. The other 1,796 cases in that
+chat file remain unselected. Total selected passing cases: 2,574. This is not full
+chat-suite or repository acceptance.
+
+The complete files include all 23 notice-worker cases, 17 presentation/ownership
+read cases and 88 startup cases. Production server typechecking, build, module
+boundaries, migration order and the source identity check pass. Twenty dedicated
+PostgreSQL 17 databases use the unchanged migration 413 schema. Embedded-only
+calls use existing fresh-per-call recovery fixtures. Every temporary import is
+restored byte-for-byte and all 24 selected file hashes match after completion.
+No assertion or timeout is relaxed. The focused scope green takes 6.69 seconds;
+the intended failing unscoped baseline is not counted as acceptance.
+
+Parent #17752 merged as `50fe32684d2d4e1db129e3c1bb455571344a0c09`, after
+57 clean current-head checks and Greptile 5/5. Its complete reviewed tree equals
+the actual squash. Normal merge `a0f2b3f4348b078219a53d8cc135c84202ba505e`
+adopts that ancestry with this child's entire tested tree unchanged. This slice
+can now target master. Fresh exact-head CI and review remain separate gates.
+
+The unchanged package tree retains parent profile 80 acceptance: 130 passing
+installation/compatibility/transport cases, 22 installed ACPX/Grok contract cases
+and 26 native-provider Rust cases. One existing opt-in closed Pi snapshot case
+was skipped because its distribution root was unset. This does not qualify a live
+Pi installation. Earlier failures in this audit retain their revision and
+subsequent disposition. No deployed sleep, expanded Cloud alarm coverage or
+measured savings is claimed.

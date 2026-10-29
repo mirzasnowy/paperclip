@@ -38,7 +38,10 @@ The migration is replayable. It backfills only historical ended rows whose old
 writer or signed lifecycle audit proves termination. It leaves old guest-denial
 rows uncertain when their ended label did not prove physical cleanup. Those rows
 receive a real check rather than disappearing as completed history. The partial
-index covers unconfirmed admission identities; startup inventory is paged.
+index covers unconfirmed admission identities. Startup reads at most 100 rows
+per scope refresh and reconstructs deadlines across pages. The historical
+backfill commits keyset batches of at most 1,000 rows through the migration
+runner. Migration 0395 preserves the landed checkpoint lineage through 0394.
 
 ## Deadlines and quiet state
 
@@ -98,7 +101,9 @@ drain/resume, shutdown, retention protection, and deletion protection. Productio
 service tests exercise signed ingress, rejection, account mismatch and rotation,
 feature disable, and atomic ordinary/guest approval. See the dated
 [inbound cleanup audit](plans/2026-10-25-voice-inbound-cleanup-sleep-audit.md) for
-commands, counts and preserved failures.
+commands, counts and preserved failures. The current-parent acceptance records
+266 distinct passing cases and the guarded batching, restart and approval
+regressions. Earlier counts in that audit belong to their stated revisions.
 
 These changes do not migrate history retention or call reports, extend Cloud's
 external wake coverage, relax sleep eligibility for live calls, or prove actual

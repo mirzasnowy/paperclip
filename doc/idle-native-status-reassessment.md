@@ -65,29 +65,36 @@ owners; this change does not add a distributed notification transport.
 
 ## Evidence and limits
 
-The corpus/startup/lifecycle selection passes 246 tests; the existing native
-finalization and retained-cleanup consumers pass 32 tests. Workspace typecheck
-and build pass. A review-driven repair adds six real claim-release regressions; the repaired
-selection passes 978 lifecycle and consumer cases, with 15 embedded-DB runtime
-cases excluded for the host limitation below. Ordinary release preserves its new
-assignment authority instead of automatically completing the old review.
-Earlier producer suites exercise commit/rollback, first real
-writes, failures, dormant history, saved deadlines and authority races.
+Current qualification is recorded in the [audit](plans/2026-10-26-native-status-reassessment-sleep-audit.md).
+The broad 9fddb source passes 2731 cases in 28 complete files. The final 5ea3
+runtime source, after the evidence-trigger quality fix, passes 1211 cases in five
+complete affected files. Their overlapping counts are not added together. Real
+producer/transaction coverage includes first writes, rollback/outer commit,
+authority races, saved deadlines, drain/resume, claim release and retained history.
+The final worker suite includes all 43 cases.
 
-A 10,000-task selected-history fixture returns no company candidates in about
-35 ms locally. A 10,000-item real backlog takes 101 queries and about 1.56 seconds
-to reconstruct. The coordinator retains outstanding entries; total memory is
-proportional to the backlog. A permanent 103-item lifecycle case verifies actual
-settlement across batches and SQL quiet afterward. Discovery stops between pages
-when drained or aborted; it does not cancel an already-running SQL statement.
+Required quality review remains mandatory on both retired-review and evidence
+reassessment. An unmet review produces its existing nonterminal decision and
+review recovery action, rather than repeatedly attempting completion as an
+operational retry. Real required/optional regressions and controlled coarse-hint
+negatives fail before repair and pass afterward without changing time limits.
 
-Full local-suite acceptance is not yet established. Embedded PostgreSQL cannot
-bootstrap because the host has exhausted System V semaphores. A direct disposable
-initdb probe reproduces the error before application tests execute. Dedicated
-PostgreSQL 17 tests above pass. Remote CI and review must pass on the PR head.
+Historical discovery measurements in the audit retain their original revision:
+10,000 selected-history tasks return no company candidates in about 35 ms;
+10,000 real candidates require 101 queries and about 1.56 seconds to discover.
+This is discovery cost, not complete backlog execution. The current worker still
+retains candidates in memory proportional to backlog size. Its permanent
+103-item lifecycle case verifies settlement across batches and SQL quiet.
+Cancellation is checked between pages, not during an already-running SQL call.
 
-The [audit](plans/2026-10-26-native-status-reassessment-sleep-audit.md) records
-before-fix failures, repairs, producer evidence, benchmarks and retained limitations.
-The [stack ledger](plans/2026-10-24-recurring-server-sleep-stack.md) tracks other
-duties. Worker quiet does not establish database suspension, Cloud alarm coverage,
-host sleep or fleet cost savings.
+Database build, server typecheck/build, module boundaries and migration-order
+checks pass. The host's embedded PostgreSQL bootstrap remains limited by
+exhausted System V semaphores; acceptance uses fresh owned PostgreSQL 17 databases
+and preserves embedded-only fresh-per-call isolation through the existing recovery
+helper. Adapted test imports restore exactly; assertions are unchanged. No full
+local repository-suite or live external-provider qualification is claimed.
+
+Remote exact-head CI and review still gate merging. The
+[stack ledger](plans/2026-10-24-recurring-server-sleep-stack.md) tracks other duties.
+Worker quiet does not establish database suspension, Cloud alarm coverage, host
+sleep or fleet cost savings.

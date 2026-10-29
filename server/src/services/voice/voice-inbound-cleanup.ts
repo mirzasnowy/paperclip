@@ -33,30 +33,48 @@ export async function assertVoiceInboundCleanupSettled(db: Pick<Db, "select">, c
 }
 
 export function voiceInboundCleanup(db: Db, terminate: (call: Admission) => Promise<boolean>) {
+  const cursors = new Map<string, string>();
+  async function page(scope?: VoiceInboundScope, cursor?: string, signal?: AbortSignal) {
+    signal?.throwIfAborted();
+    const rows = await db.select({ call: chatVoiceInboundCalls, session: chatVoiceSessions, connectionId: chatEndpoints.connectionId })
+      .from(chatVoiceInboundCalls)
+      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceInboundCalls.endpointId), eq(chatEndpoints.companyId, chatVoiceInboundCalls.companyId)))
+      .leftJoin(chatVoiceSessions, and(eq(chatVoiceSessions.id, chatVoiceInboundCalls.sessionId), eq(chatVoiceSessions.companyId, chatVoiceInboundCalls.companyId)))
+      .where(and(isNull(chatVoiceInboundCalls.cleanupConfirmedAt),
+        scope?.kind === "admission" ? eq(chatVoiceInboundCalls.id, scope.id) : undefined,
+        scope?.kind === "session" ? eq(chatVoiceInboundCalls.sessionId, scope.id) : undefined,
+        scope?.kind === "endpoint" ? eq(chatVoiceInboundCalls.endpointId, scope.id) : undefined,
+        scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
+        scope?.kind === "company" ? eq(chatVoiceInboundCalls.companyId, scope.id) : undefined,
+        cursor ? gt(chatVoiceInboundCalls.id, cursor) : undefined))
+      .orderBy(chatVoiceInboundCalls.id).limit(100);
+    signal?.throwIfAborted();
+    return rows;
+  }
+  function entries(rows: Awaited<ReturnType<typeof page>>): VoiceInboundEntry[] {
+    const result: VoiceInboundEntry[] = [];
+    for (const { call, session, connectionId } of rows) {
+      const dueAt = inboundCleanupAt(call, session);
+      if (dueAt !== null) result.push({ id: call.id, sessionId: call.sessionId, companyId: call.companyId, endpointId: call.endpointId, connectionId, dueAt });
+    }
+    return result;
+  }
   async function load(scope?: VoiceInboundScope, signal?: AbortSignal): Promise<VoiceInboundEntry[]> {
-    const entries: VoiceInboundEntry[] = [];
+    const result: VoiceInboundEntry[] = [];
     let cursor: string | undefined;
     for (;;) {
-      signal?.throwIfAborted();
-      const rows = await db.select({ call: chatVoiceInboundCalls, session: chatVoiceSessions, connectionId: chatEndpoints.connectionId })
-        .from(chatVoiceInboundCalls)
-        .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceInboundCalls.endpointId), eq(chatEndpoints.companyId, chatVoiceInboundCalls.companyId)))
-        .leftJoin(chatVoiceSessions, and(eq(chatVoiceSessions.id, chatVoiceInboundCalls.sessionId), eq(chatVoiceSessions.companyId, chatVoiceInboundCalls.companyId)))
-        .where(and(isNull(chatVoiceInboundCalls.cleanupConfirmedAt),
-          scope?.kind === "admission" ? eq(chatVoiceInboundCalls.id, scope.id) : undefined,
-          scope?.kind === "session" ? eq(chatVoiceInboundCalls.sessionId, scope.id) : undefined,
-          scope?.kind === "endpoint" ? eq(chatVoiceInboundCalls.endpointId, scope.id) : undefined,
-          scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
-          scope?.kind === "company" ? eq(chatVoiceInboundCalls.companyId, scope.id) : undefined,
-          cursor ? gt(chatVoiceInboundCalls.id, cursor) : undefined))
-        .orderBy(chatVoiceInboundCalls.id).limit(100);
-      for (const { call, session, connectionId } of rows) {
-        const dueAt = inboundCleanupAt(call, session);
-        if (dueAt !== null) entries.push({ id: call.id, sessionId: call.sessionId, companyId: call.companyId, endpointId: call.endpointId, connectionId, dueAt });
-      }
-      if (rows.length < 100) return entries;
+      const rows = await page(scope, cursor, signal);
+      result.push(...entries(rows));
+      if (rows.length < 100) return result;
       cursor = rows[rows.length - 1].call.id;
     }
+  }
+  async function refresh(scope?: VoiceInboundScope, signal?: AbortSignal) {
+    const key = scope ? `${scope.kind}:${scope.id}` : "*";
+    const rows = await page(scope, cursors.get(key), signal), result = entries(rows), complete = rows.length < 100;
+    signal?.throwIfAborted();
+    if (complete) cursors.delete(key); else cursors.set(key, rows[rows.length - 1].call.id);
+    return { rows: result, complete };
   }
   async function check(id: string, signal?: AbortSignal): Promise<VoiceInboundEntry | null> {
     signal?.throwIfAborted();
@@ -69,6 +87,26 @@ export function voiceInboundCleanup(db: Db, terminate: (call: Admission) => Prom
         eq(chatVoiceSessions.companyId, call.companyId), eq(chatVoiceSessions.endpointId, call.endpointId),
         eq(chatVoiceSessions.providerSessionId, call.providerSessionId))).for("update");
       if (session) {
+        if (terminal(session)) {
+          if (call.sessionId && call.sessionId !== session.id) throw conflict("Incoming call cleanup has conflicting session ownership");
+          await notifyVoiceInbound(tx, { kind: "admission", id });
+          await tx.update(chatVoiceInboundCalls).set({ ...(!rejected(call) ? { state: "ended" as const } : {}), cleanupConfirmedAt: session.endedAt, cleanupNextAttemptAt: null, updatedAt: new Date() }).where(eq(chatVoiceInboundCalls.id, id));
+          return null;
+        }
+        if (rejected(call)) {
+          if (call.sessionId !== session.id) {
+            if (call.sessionId || session.mode !== "inbound_phone" || session.idempotencyKey !== `inbound:${call.id}`
+              || session.generation !== call.generation || session.credentialFingerprint !== call.credentialFingerprint
+              || session.toolTokenHash !== call.toolTokenHash) throw conflict("Incoming call cleanup has conflicting session ownership");
+            await notifyVoiceInbound(tx, { kind: "admission", id });
+            await tx.update(chatVoiceInboundCalls).set({ sessionId: session.id, updatedAt: new Date() }).where(eq(chatVoiceInboundCalls.id, id));
+          }
+          if (session.state !== "ending") {
+            await notifyVoiceRecovery(tx, { kind: "session", id: session.id });
+            await tx.update(chatVoiceSessions).set({ state: "ending", updatedAt: new Date() }).where(eq(chatVoiceSessions.id, session.id));
+          }
+          return null;
+        }
         if (call.sessionId !== session.id || (call.state === "approving" && session.callerAuthority !== "guest_intake")) {
           // Repair older commits that inserted/promoted an authorized session
           // before the separate admission binding write. Never infer approval
@@ -82,13 +120,6 @@ export function voiceInboundCleanup(db: Db, terminate: (call: Admission) => Prom
           await notifyVoiceInbound(tx, { kind: "admission", id });
           await tx.update(chatVoiceInboundCalls).set({ state: "approved", sessionId: session.id, updatedAt: new Date() }).where(eq(chatVoiceInboundCalls.id, id));
           call.state = "approved"; call.sessionId = session.id;
-        }
-        if (terminal(session)) {
-          await notifyVoiceInbound(tx, { kind: "admission", id });
-          await tx.update(chatVoiceInboundCalls).set({ ...(!rejected(call) ? { state: "ended" as const } : {}), cleanupConfirmedAt: session.endedAt, cleanupNextAttemptAt: null, updatedAt: new Date() }).where(eq(chatVoiceInboundCalls.id, id));
-        } else if (rejected(call) && session.state !== "ending") {
-          await notifyVoiceRecovery(tx, { kind: "session", id: session.id });
-          await tx.update(chatVoiceSessions).set({ state: "ending", updatedAt: new Date() }).where(eq(chatVoiceSessions.id, session.id));
         }
         return null;
       }
@@ -113,10 +144,11 @@ export function voiceInboundCleanup(db: Db, terminate: (call: Admission) => Prom
     return (await load({ kind: "admission", id }, signal))[0] ?? null;
   }
   function register(coordinator: ReturnType<typeof createDeliveryWorkCoordinator>, canRun: () => boolean) {
+    cursors.clear();
     return registerScopedDeadlineWork(coordinator, {
       queue: DELIVERY_QUEUES.voiceInboundCleanup, decodeScope: voiceInboundScope,
       matches: (entry, scope) => !scope || (scope.kind === "admission" ? entry.id : scope.kind === "session" ? entry.sessionId : scope.kind === "endpoint" ? entry.endpointId : scope.kind === "connection" ? entry.connectionId : entry.companyId) === scope.id,
-      load, check: (entry, signal) => check(entry.id, signal),
+      load: refresh, check: (entry, signal) => check(entry.id, signal),
     }, canRun);
   }
   return { load, check, register };

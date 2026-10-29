@@ -100,3 +100,55 @@ through consent parent e501d6c99d. Thirty report-worker/startup cases pass on ea
 combined Teams child; logs /tmp/sleep26-parent-review-tests.log and
 /tmp/sleep27-parent-review-tests.log. Snapshot retention remains five. Fresh
 remote gates on the propagated heads remain required; older stack findings remain.
+
+
+## Current consent-parent preparation and acceptance — October 28
+
+This existing attempt-recovery slice is prepared on consent candidate
+`9e84cfab1f795279c8cec413a946631f1d781bd2`. Its complete 13-path patch is unchanged
+while inheriting the parent's bounded consent reconstruction and retention
+acceptance repair. The normal merge keeps the complete parent stack history
+and the attempt appendix. The initial explicit-base composition was recorded
+at `163a81d1`; the parent follow-up is included at `642095e2`. This preparation may be published on that exact pending parent to run CI in
+parallel. Merge still requires the consent PR to have landed, an ordinary clean
+Git composition onto actual master, and proof that only the complete owned
+attempt patch is added while all master changes survive. A normal ancestry
+merge remains necessary if that composition is not clean. No additional worker
+refactor or new background duty is introduced.
+
+Current local acceptance passes 239 distinct selected cases: 221 across the
+complete transfer/publication/consent/consent-runtime/app-wiring suites, 16
+selected production integration cases, and two delegated Slack policy cases.
+The production cases include the real Board attempt claim and confirmed receipt,
+retired recovery deadline and quiet SQL, consent expiry and current authority,
+and the existing timed-out GitHub metadata/retry race. The other 1,579 chat
+integration cases were skipped. The Slack probe covers linked and invitation
+recipients; its other 81 cases were skipped. Each database-owning suite uses a
+new isolated PostgreSQL database. Server production typecheck, build and module
+boundaries pass. Test files were executed; production typechecking does not
+statically check them. The unchanged signoff E2E test was not run locally in this
+acceptance; fresh remote E2E gates remain required.
+
+The old CI run `40557802358`, server shard 10/12 job `122390238707`, failed the
+delegated Slack invitation target-rate assertion: the second call was admitted
+at a real minute boundary. That shard had 2,122 passing tests, one failed and 15
+skipped. The actual prepared parent already contains the Date-only rate-window
+fixture fix, so it is preserved rather than duplicated in this PR. Both linked
+and invitation policy cases now pass through their full caller/target/shared
+rate scenarios on a fresh server database. No production policy, timeout, test
+expectation or new owned file was changed for this inherited failure; current
+remote CI must pass independently. The old failure is not erased by the probe.
+
+Evidence: `/tmp/sleep27-old-server10-job.log`,
+`/tmp/sleep27-current-parent-protocols.log` (221 pass),
+`/tmp/sleep27-current-parent-producers.log` (16 pass),
+`/tmp/sleep27-inherited-rate-window-probe.log` (two pass),
+`/tmp/sleep27-current-parent-types.log`,
+`/tmp/sleep27-current-parent-build.log`, and
+`/tmp/sleep27-current-parent-boundaries.log`.
+Earlier 235-case or combined-stack evidence belongs to its stated revisions and
+is not added to 239. Latest-head Greptile 5/5 and required CI still gate merge;
+missing or paused Ponytail turns without a verdict follow the user's existing
+merge authorization, and actual failing findings must be fixed. No full local
+repository suite, live Teams/Slack tenant, external wake, physical suspension or
+cost-saving claim is made.

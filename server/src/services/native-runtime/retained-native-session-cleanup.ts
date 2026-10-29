@@ -5,9 +5,9 @@ import { nativeRunnerOwnershipNotHeldCondition } from "./native-runner-ownership
 import type { RetainedNativeSessionCleanupScope } from "../retained-native-session-cleanup-notifications.js";
 export type { RetainedNativeSessionCleanupScope } from "../retained-native-session-cleanup-notifications.js";
 
-/** Discovery grants no physical cleanup authority. Scheduled callers include
- * leased candidates so a future lease deadline cannot disappear during startup
- * reconstruction; execution still rechecks the lease and exact physical state. */
+
+
+
 export function findRetainedNativeSessionCleanupCandidates(db: Db, options: {
   scope?: RetainedNativeSessionCleanupScope;
   after?: string;
@@ -57,16 +57,16 @@ export function findRetainedNativeSessionCleanupCandidates(db: Db, options: {
           isNull(nativeRunFinalizations.leaseExpiresAt),
           lte(nativeRunFinalizations.leaseExpiresAt, sql`now()`),
         ),
-        // The accepted-result projector preserves a recovered close failure
-        // privately after clearing the visible successful run's stale error.
+
+
         sql`coalesce(${heartbeatRuns.errorCode}, ${heartbeatRuns.resultJson}->'recoveredExecutionFailure'->>'errorCode') in ('adapter_failed', 'provider_transport_failed')`,
         sql`coalesce(${heartbeatRuns.error}, ${heartbeatRuns.resultJson}->'recoveredExecutionFailure'->>'error') = 'provider_transport_failed: runner did not durably suspend before checkpoint'`,
         sql`not (${nativeRunFinalizations.recoveryHistory} @> '[{"kind":"native_cleanup_runner_epoch"}]'::jsonb)`,
         sql`not (${nativeRunFinalizations.recoveryHistory} @> '[{"kind":"native_cleanup_source_archive","phase":"operator_required"}]'::jsonb)`,
-        // One legacy pre-ownership attempt may be inspected by the closed,
-        // artifact-pinned no-launch verifier. Discovery grants no authority
-        // to reuse its directory or start a provider. New recorded epochs,
-        // staged attempts and ambiguous histories never enter this lane.
+
+
+
+
         sql`(
           select coalesce(
             jsonb_array_length(history.entries) = 0 or (
@@ -116,10 +116,10 @@ export type NativeCleanupOutcome = {
 };
 export type RetainedNativeSessionCleanup = (input: { companyId: string; runId: string }) => Promise<NativeCleanupOutcome>;
 
-// Startup/manual and scheduled callers share the same per-database lane. Join
-// duplicate runs and serialize different runs: even a refused inspection briefly
-// reserves physical session scope, so another cleanup must not mistake it for a
-// long-lived external owner and wait for a release notification that never comes.
+
+
+
+
 const operations = new WeakMap<Db, {
   tail: Promise<void>;
   runs: Map<string, Promise<NativeCleanupOutcome>>;
@@ -147,10 +147,10 @@ type NativeCleanupSweep = {
 };
 const nativeCleanupSweeps = new WeakMap<Db, NativeCleanupSweep>();
 
-/** Candidate discovery is not cleanup authority. The exact-state operation
- * claims its own durable lease and rechecks every physical owner. Keep this
- * lane joined and bounded, and advance even past ineligible candidates so one
- * damaged checkpoint cannot starve another company's recoverable session. */
+
+
+
+
 export function reconcileRetainedNativeSessionCleanups(
   db: Db,
   options: {
@@ -188,8 +188,8 @@ export function reconcileRetainedNativeSessionCleanups(
     }
     return outcomes;
   };
-  // Deferring the query one microtask installs the joined owner before any
-  // asynchronous work begins. Cleanup never creates a heartbeat or wake.
+
+
   const pending = Promise.resolve()
     .then(operation)
     .finally(() => {

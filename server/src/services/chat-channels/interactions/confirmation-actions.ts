@@ -675,21 +675,24 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
         (entry.companyId === scope.companyId && (!scope.issueId || !entry.issueId || entry.issueId === scope.issueId)),
       load: async (scope?: ChatConfirmationScope, signal?: AbortSignal): Promise<Entry[]> => {
         const entries: Entry[] = [];
-        let cursor: string | undefined;
+        let cursor: { companyId: string; id: string } | undefined;
         while (!signal?.aborted) {
           const rows = await db.select({
             id: chatActions.id, companyId: chatActions.companyId, issueId: chatConversations.issueId,
           }).from(chatActions).leftJoin(chatConversations, and(
             eq(chatConversations.companyId, chatActions.companyId), eq(chatConversations.id, chatActions.conversationId),
           )).where(and(
-            eq(chatActions.kind, "confirmation_response"), eq(chatActions.status, "processing"),
+            sql`${chatActions.kind} = 'confirmation_response' AND ${chatActions.status} = 'processing'`,
             scope ? eq(chatActions.companyId, scope.companyId) : undefined,
             scope?.issueId ? or(eq(chatConversations.issueId, scope.issueId), isNull(chatConversations.id)) : undefined,
-            cursor ? gt(chatActions.id, cursor) : undefined,
-          )).orderBy(asc(chatActions.id)).limit(100);
+            cursor ? or(
+              gt(chatActions.companyId, cursor.companyId),
+              and(eq(chatActions.companyId, cursor.companyId), gt(chatActions.id, cursor.id)),
+            ) : undefined,
+          )).orderBy(asc(chatActions.companyId), asc(chatActions.id)).limit(100);
           entries.push(...rows.map(row => ({ ...row, dueAt: 0 })));
           if (rows.length < 100) return entries;
-          cursor = rows[rows.length - 1].id;
+          cursor = rows[rows.length - 1];
         }
         throw signal?.reason ?? new Error("Confirmation recovery stopped");
       },

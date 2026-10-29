@@ -387,8 +387,8 @@ describe("board retry of accepted workspace export", () => {
         phase: "terminal_failure", resultId, failureCode: unsafe });
       const accepted = await db.select().from(nativeRunResults).where(eq(nativeRunResults.issueId, older.issueId));
 
-      // Discovery initially sees only the older notice: it blocks the newer run.
-      // Its retirement must rediscover the issue without another write or restart.
+
+
       await start(); await flush();
       expect((await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, older.actionId)))[0])
         .toMatchObject({ status: "resolved", resolutionNote: "unsafe_export_automatic_recovery" });
