@@ -683,18 +683,20 @@ describePostgres("heartbeat recovery module ownership", () => {
     await vi.waitFor(() => expect(deps.activeRunExecutionPromises.size).toBe(0));
   });
 
-  it("stops preparation renewal before a recovered executor releases its lease", async () => {
+  it.each(["completion", "failure_before_dispatch"] as const)("stops preparation renewal after recovered %s", async outcome => {
     const run = await seedRun();
     const deps = callbacks(db);
     const controller = await currentNativeControllerIdentity();
     const claim: NativeRestartRecoveryClaim = { kind: "reattach_remote_runner", runId: run.id,
-      leaseOwner: randomUUID(), controllerGeneration: 2, providerAttempt: 1, restartKind: "hard", recoveryRequestId: null };
+      leaseOwner: randomUUID(), controllerGeneration: 2, providerAttempt: 1, restartKind: "hard", recoveryRequestId: null,
+      remote: { providerLeaseId: randomUUID(), remoteCwd: "/workspace" } };
     const scope = { companyId: run.companyId, issueId: run.issueId!, controller, remote: true };
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: run.issueId }).where(eq(heartbeatRuns.id, run.id));
+    const expiresAt = new Date(Date.now() + 60_000);
     await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!, phase: "observed", attempt: 1,
       controllerBootId: controller.bootId, controllerPid: controller.pid,
       controllerProcessStartedAt: controller.processStartedAt,
-      leaseOwner: claim.leaseOwner, leaseExpiresAt: new Date(Date.now() + 60_000) });
+      leaseOwner: claim.leaseOwner, leaseExpiresAt: expiresAt });
     native.claims.mockImplementationOnce(async input => {
       await input.onClaim?.(claim, scope);
       return [claim];
@@ -703,6 +705,10 @@ describePostgres("heartbeat recovery module ownership", () => {
     const leaseReleased = new Promise<void>(resolve => { released = resolve; });
     const finalization = new Promise<void>(resolve => { finish = resolve; });
     deps.executeRun.mockImplementationOnce(async (_runId, options) => {
+      if (outcome === "failure_before_dispatch") {
+        released();
+        throw new Error("workspace preparation failed");
+      }
       const execution = startNativeSessionExecutionLeaseRenewal({ db, ...scope, runId: run.id,
         leaseOwner: claim.leaseOwner, attempt: claim.providerAttempt,
         onLost: () => native.detach() });
@@ -721,9 +727,11 @@ describePostgres("heartbeat recovery module ownership", () => {
       await createHeartbeatRecovery(db, deps).recoverNativeRunsAfterRestart(new Date(), [run.id]);
       await leaseReleased;
       await new Promise(resolve => setTimeout(resolve, 21_000));
-      expect(deps.activeRunExecutionPromises.size).toBe(1);
+      expect(deps.activeRunExecutionPromises.size).toBe(outcome === "completion" ? 1 : 0);
       expect(native.detach).not.toHaveBeenCalled();
       expect(deps.executeRun).toHaveBeenCalledOnce();
+      const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, run.id));
+      expect(coordinator.leaseExpiresAt).toEqual(outcome === "completion" ? null : expiresAt);
     } finally {
       finish();
       await Promise.all([...deps.activeRunExecutionPromises]);
