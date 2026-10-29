@@ -1219,7 +1219,7 @@ export async function finalizeNativeRun(input: {
   db: Db;
   runId: string;
   workspaceFinalizeStatus: "succeeded" | "failed";
-  /** Scheduled recovery rechecks a saved retry under the coordinator claim lock. */
+
   onlyWhenDue?: boolean;
   /** Reconciliation owns terminal run projection; the live heartbeat does it afterward. */
   projectRunStatus?: boolean;

@@ -1847,7 +1847,7 @@ async function startServerWithDatabaseTeardown(
     if (config.heartbeatSchedulerEnabled) {
       const worker = heartbeat.registerNativeResultCommitWork(deliveryWork,
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby());
-      // Result settlement can wait on an execution lock; HTTP readiness need not.
+
       trackHeartbeatSchedulerWork(worker.ready);
     }
     if (config.heartbeatSchedulerEnabled) await heartbeat.registerNativeStatusReassessmentWork(deliveryWork,

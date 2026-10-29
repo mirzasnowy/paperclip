@@ -11,8 +11,8 @@ import { readNativeWorkspaceSyncReference } from "./native-workspace-sync.js";
 
 type Entry = { id: string; companyId: string; issueId: string; dueAt: number };
 
-/** Commit accepted results after copy-back. Committed projections and resource
- * settlement have independent recovery owners; committed history is not work here. */
+
+
 export function nativeResultCommitWork(db: Db, finalize = finalizeNativeRun) {
   function candidates(scope?: NativeResultCommitScope, after?: string) {
     return db.select({ id: nativeRunFinalizations.runId, companyId: nativeRunFinalizations.companyId,
@@ -71,7 +71,7 @@ export function nativeResultCommitWork(db: Db, finalize = finalizeNativeRun) {
         preserveProviderAttempt: Boolean(readNativeWorkspaceSyncReference(run.profile?.nativeWorkspaceSync)),
       });
     } catch (error) {
-      // Another owner or a later retry deadline is not a failed provider attempt.
+
       if (!(error instanceof NativeFinalizationDeferredError)) {
         await recordNativeFinalizationFailure({ db, runId: current.id, error, projectRunStatus: true });
       }
@@ -79,8 +79,8 @@ export function nativeResultCommitWork(db: Db, finalize = finalizeNativeRun) {
     const [remaining] = await candidates(scope);
     if (!remaining) return null;
     const next = entry(remaining);
-    // Only concrete unfinished results retain this fallback if the authority
-    // returned without either committing or saving a future retry deadline.
+
+
     return next.dueAt > Date.now() ? next : { ...next, dueAt: Date.now() + 30_000 };
   }
   function register(coordinator: ReturnType<typeof createDeliveryWorkCoordinator>, canRun: () => boolean,
