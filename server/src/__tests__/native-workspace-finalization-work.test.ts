@@ -92,7 +92,7 @@ describe("workspace finalization scheduled lifecycle", () => {
       nativeIssueId: issueId, nativeSessionId: runId, runnerInstanceId: sourceInstanceId,
       completionContractId: contractId, completionContractSha256: contractId, contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    // A previous incomplete operation supplies the durable local-directory path.
+
     await db.insert(workspaceOperations).values({ companyId, issueId, heartbeatRunId: runId,
       phase: "workspace_finalize", status: "failed", cwd: root });
     return { companyId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
@@ -137,7 +137,7 @@ describe("workspace finalization scheduled lifecycle", () => {
     await complete(binding, db, producer); await flush();
     expect(await successful(binding.runId)).toHaveLength(1);
     expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, binding.runId))).toHaveLength(1);
-    expect(settled).not.toHaveBeenCalled(); // Result projection/resource release belong to their existing owners.
+    expect(settled).not.toHaveBeenCalled(); 
     await quiet();
     worker!.stop(); await coordinator!.stop(); await start(); await flush(); await quiet();
     expect(await successful(binding.runId)).toHaveLength(1);
@@ -237,7 +237,7 @@ describe("workspace finalization scheduled lifecycle", () => {
     await start(); await flush(); await quiet();
     expect(await successful(binding.runId)).toHaveLength(0);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, binding.runId)))[0].runnerProfileJson?.nativeWorkspaceFinalizationOwner).toEqual(owner);
-    // A supported coordinator transition still rechecks the exact pending run.
+
     await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, binding); });
     await flush(); await quiet();
     expect(await successful(binding.runId)).toHaveLength(0);

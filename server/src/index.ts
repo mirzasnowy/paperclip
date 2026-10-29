@@ -1832,7 +1832,7 @@ async function startServerWithDatabaseTeardown(
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby());
       unsubscribeNativeWorkspaceFinalization = worker.stop;
       server.on("close", worker.stop);
-      // Copy-back remains owned through drain/shutdown without delaying readiness.
+
       trackHeartbeatSchedulerWork(worker.ready);
     }
     if (config.heartbeatSchedulerEnabled) {
