@@ -899,3 +899,37 @@ second-line\" status=401`,
     });
   });
 });
+
+describe("redaction keeps JSON escaping intact around redacted secrets", () => {
+  it("keeps an apikey inside a JSON string valid when an escaped quote follows", () => {
+    const input = JSON.stringify({ v: 'a.js?apikey=SECRET123","bnt_t"' });
+    const output = redactSensitiveText(input);
+    expect(output).toBe('{"v":"a.js?apikey=***REDACTED***\\",\\"bnt_t\\""}');
+    expect(() => JSON.parse(output)).not.toThrow();
+    expect(output).not.toContain("SECRET123");
+  });
+
+  it("keeps a trailing literal backslash in a redacted JSON string value", () => {
+    const input = JSON.stringify({ v: "a.js?apikey=SECRET123\\" });
+    const output = redactSensitiveText(input);
+    expect(JSON.parse(output)).toEqual({ v: "a.js?apikey=***REDACTED***\\" });
+    expect(output).not.toContain("SECRET123");
+  });
+
+  it("redacts a JSON secret-field value that contains an escaped quote", () => {
+    const output = redactSensitiveText('{"token":"pre\\"MARKERQUOTE_A"}');
+    expect(output).toBe(`{"token":"${REDACTED_EVENT_VALUE}"}`);
+    expect(() => JSON.parse(output)).not.toThrow();
+  });
+
+  it("redacts an escaped-JSON secret-field value that contains an escaped quote", () => {
+    const output = redactSensitiveText(JSON.stringify('{"token":"pre\\"MARKERQUOTE_B"}'));
+    expect(JSON.parse(output)).toBe(`{"token":"${REDACTED_EVENT_VALUE}"}`);
+    expect(output).not.toContain("MARKERQUOTE_B");
+  });
+
+  it("keeps redacting an apikey on a second pass", () => {
+    const once = redactSensitiveText(JSON.stringify({ v: 'a.js?apikey=SECRET123","bnt_t"' }));
+    expect(redactSensitiveText(once)).toBe(once);
+  });
+});

@@ -145,3 +145,33 @@ second-line\" status=401`;
     expect(output).toContain(REDACTED_COMMAND_TEXT_VALUE);
   });
 });
+
+describe("unquoted secret values stop before a backslash run that introduces a quote", () => {
+  it("keeps JSON valid when an apikey value is followed by an escaped quote", () => {
+    const input = '{"v":"a.js?apikey=SECRET123\\",\\"bnt_t\\""}';
+    const output = redactCommandText(input);
+    expect(output).toBe('{"v":"a.js?apikey=***REDACTED***\\",\\"bnt_t\\""}');
+    expect(() => JSON.parse(output)).not.toThrow();
+    expect(output).not.toContain("SECRET123");
+  });
+
+  it("keeps a CLI secret option value from eating a following escaped quote", () => {
+    expect(redactCommandText('tool --apikey=SECRET123\\",\\"x\\"'))
+      .toBe('tool --apikey=***REDACTED***\\",\\"x\\"');
+  });
+
+  it("keeps a bearer value from eating a following escaped quote", () => {
+    expect(redactCommandText('Authorization: Bearer SECRET123\\",\\"x\\"'))
+      .toBe('Authorization: Bearer ***REDACTED***\\",\\"x\\"');
+  });
+
+  it("keeps a backslash run that introduces a single quote outside the value", () => {
+    expect(redactCommandText("apikey=SECRET123\\' trailing"))
+      .toBe("apikey=***REDACTED***\\' trailing");
+  });
+
+  it("still consumes backslashes that do not introduce a quote", () => {
+    expect(redactCommandText("token=C:\\path\\to\\file end"))
+      .toBe("token=***REDACTED*** end");
+  });
+});
