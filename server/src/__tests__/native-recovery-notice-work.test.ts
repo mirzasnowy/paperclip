@@ -15,6 +15,7 @@ import { agents, companies, completionContracts, createDb, heartbeatRuns, issues
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { nativeRecoveryNoticeWork } from "../services/native-runtime/native-recovery-notice-work.js";
 import { resolveCommittedNativeRecoveryNotices } from "../services/native-runtime/native-recovery-notices.js";
+import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
 import { issueRecoveryActionService } from "../services/issue-recovery-actions.js";
 import { issueRecoveryActions } from "@paperclipai/db";
 import { finalizeNativeRun } from "../services/native-runtime/native-run-finalizer.js";
@@ -144,6 +145,26 @@ describe("committed native recovery notice lifecycle", () => {
     await quiet(); const settled = await action(pending.id);
     await coordinator!.stop(); await start(); await flush(); await quiet(); expect(await action(pending.id)).toEqual(settled);
   });
+  it("ignores routine company-only finalization hints and still resolves a real notice", async () => {
+    await start(); await flush(); await quiet();
+    const previous = db.$client.options.debug;
+    const queries: string[] = [];
+    db.$client.options.debug = (_id, query) => {
+      if (/from\s+"native_run_finalizations"/i.test(query)) queries.push(query);
+    };
+    try {
+      for (let index = 0; index < 3; index += 1) {
+        await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, { companyId }); });
+        await flush();
+      }
+      expect(queries).toEqual([]);
+    } finally { db.$client.options.debug = previous; }
+    const binding = await committed();
+    const pending = await notice(binding); await flush();
+    expect(await action(pending.id)).toMatchObject({ status: "resolved", outcome: "restored" });
+    await quiet();
+  });
+
   it("wakes from a real notice created after startup is quiet", async () => {
     const binding = await committed(); await start(); await flush(); await quiet();
     const pending = await notice(binding); await flush(); expect((await action(pending.id)).status).toBe("resolved"); await quiet();
