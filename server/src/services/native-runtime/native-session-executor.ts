@@ -7791,6 +7791,8 @@ export async function executePaperclipNativeSession(input: {
   turnTimeoutMs?: number;
   leaseOwner?: string;
   restartRecovery?: NativeRestartRecoveryClaim;
+  /** Release recovery preparation's renewal after execution owns its reference. */
+  onExecutionLeaseAcquired?: () => Promise<void>;
   onSpawn?: (meta: {
     pid: number;
     processGroupId: number | null;
@@ -8395,7 +8397,7 @@ async function executePaperclipNativeSessionWithinScope(
             })
             .where(eq(heartbeatRuns.id, coordinator.runId));
           return nextAttempt;
-        }).then(claimedAttempt => {
+        }).then(async claimedAttempt => {
           const startup = nativeSessionStartups.get(input.execution.binding.runId);
           if (!startup) throw new Error("native_session_startup_owner_missing");
           startup.leaseOwner = leaseOwner;
@@ -8410,6 +8412,7 @@ async function executePaperclipNativeSessionWithinScope(
               ? detachNativeSessionsForRestart([input.execution.binding.runId], leaseOwner)
               : cancelNativeSession(input.execution.binding.runId, "native session execution lease lost"),
           });
+          await input.onExecutionLeaseAcquired?.();
           return claimedAttempt;
         }),
       { parentName: "task.prepare" },
