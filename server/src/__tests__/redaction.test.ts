@@ -1054,3 +1054,28 @@ describe("JSON fields with trailing backslashes redact", () => {
     expect(output).toBe(`{"token":"${REDACTED_EVENT_VALUE}"}`);
   });
 });
+
+describe("JSON fields followed by sentence punctuation redact", () => {
+  it("redacts a JSON field value followed by a period", () => {
+    const output = redactSensitiveText('token: "SECRET123".');
+    expect(output).toBe(`token: "${REDACTED_EVENT_VALUE}".`);
+  });
+
+  it("redacts a JSON field value inside a sentence ending with a period", () => {
+    const output = redactSensitiveText(
+      'Error: token: "SECRET123". Please retry.',
+    );
+    expect(output).toBe(
+      `Error: token: "${REDACTED_EVENT_VALUE}". Please retry.`,
+    );
+  });
+
+  it("redacts JSON field values followed by exclamation and question marks", () => {
+    expect(redactSensitiveText('token: "SECRET123"!')).toBe(
+      `token: "${REDACTED_EVENT_VALUE}"!`,
+    );
+    expect(redactSensitiveText('token: "SECRET123"?')).toBe(
+      `token: "${REDACTED_EVENT_VALUE}"?`,
+    );
+  });
+});

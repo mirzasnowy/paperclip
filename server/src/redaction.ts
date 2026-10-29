@@ -371,7 +371,7 @@ const CLI_SECRET_FLAG_RE = new RegExp(
 const JSON_SECRET_FIELD_TEXT_RE = new RegExp(
   String.raw`((?:"|')?${SECRET_FIELD_NAME_PATTERN}(?:"|')?\s*:\s*(?:"|'))(?:\\[\s\S]|[^"'` +
     "`" +
-    String.raw`\\\r\n])+(?:\\+)?((?:"|'))(?=[,}\]\s;:)>]|$|,\s*["'][^"'\r\n]*["']\s*[:,}\]]|,\s*[}\]])`,
+    String.raw`\\\r\n])+(?:\\)?((?:"|'))(?=[,}\]\s;:)>!?.]|$|,\s*["'][^"'\r\n]*["']\s*[:,}\]]|,\s*[}\]])`,
   "gi",
 );
 const ESCAPED_JSON_SECRET_FIELD_TEXT_RE = new RegExp(
