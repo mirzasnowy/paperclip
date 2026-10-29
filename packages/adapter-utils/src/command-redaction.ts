@@ -18,7 +18,7 @@ const COMMAND_CLI_SECRET_OPTION_RE = new RegExp(
     "`" +
     String.raw`\\]|$)|[^\s"'` +
     "`" +
-    String.raw`\\])+(\2)`,
+    String.raw`\\])+((?:\\+)?\2)`,
   "gi",
 );
 const COMMAND_ENV_SECRET_ASSIGNMENT_RE = new RegExp(

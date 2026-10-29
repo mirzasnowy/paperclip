@@ -209,3 +209,47 @@ describe("backslash runs before value terminators", () => {
     );
   });
 });
+
+describe("CLI quoted values ending in a backslash redact", () => {
+  it("redacts a double-quoted CLI value ending in a single backslash", () => {
+    expect(redactCommandText('--token "SECRET123\\"')).toBe(
+      `--token "${REDACTED_COMMAND_TEXT_VALUE}\\"`,
+    );
+  });
+
+  it("redacts a Windows-style quoted CLI path ending in a backslash", () => {
+    expect(redactCommandText('--token "C:\\path\\" end')).toBe(
+      `--token "${REDACTED_COMMAND_TEXT_VALUE}\\" end`,
+    );
+  });
+
+  it("redacts a single-quoted CLI value ending in a backslash", () => {
+    expect(redactCommandText("--token 'SECRET123\\'")).toBe(
+      `--token '${REDACTED_COMMAND_TEXT_VALUE}\\'`,
+    );
+  });
+
+  it("redacts an equals-form quoted CLI value ending in a backslash", () => {
+    expect(redactCommandText('--token="SECRET123\\"')).toBe(
+      `--token="${REDACTED_COMMAND_TEXT_VALUE}"`,
+    );
+  });
+
+  it("redacts a quoted CLI value ending in a double backslash run", () => {
+    expect(redactCommandText('--token "SECRET123\\\\" end')).toBe(
+      `--token "${REDACTED_COMMAND_TEXT_VALUE}\\\\" end`,
+    );
+  });
+
+  it("redacts a quoted CLI value ending in a backslash without eating later text", () => {
+    expect(redactCommandText('--token "SECRET123\\" --verbose')).toBe(
+      `--token "${REDACTED_COMMAND_TEXT_VALUE}\\" --verbose`,
+    );
+  });
+
+  it("redacts up to the first escaped quote inside a quoted CLI value", () => {
+    expect(redactCommandText('--token "SECRET123\\"cd" end')).toBe(
+      `--token "${REDACTED_COMMAND_TEXT_VALUE}\\"cd" end`,
+    );
+  });
+});
