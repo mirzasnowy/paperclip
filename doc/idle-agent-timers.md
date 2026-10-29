@@ -99,3 +99,40 @@ covers only its explicitly supported durable schedules. Legacy agent timers
 remain blocked by the existing sleep-safety proof; this change neither exports
 them as Cloud alarms nor relaxes that proof. Deployed database suspension,
 host suspension, and wake correctness require separate qualification.
+
+## October 29 master reconciliation and current acceptance
+
+The existing agent-timer slice was reconciled with the qualified issue-monitor
+parent using normal merges. Four conflicts needed explicit composition. Startup
+keeps both task-drain expiry registration and the timer worker's fresh drain read;
+scheduled work keeps the new timer deadline owner; a comment-only conflict has
+no runtime effect. The shared deadline helper retains the parent's explicit
+continuation interval alongside the new per-worker minimum scan spacing. All
+other paths match the automatic merge, and packages remain byte-identical to the
+qualified profile-80 parent tree.
+
+Source `32db86c1974dcbf794f01a8c5e42024e2ad071fc` passed **1,710 cases in 49
+complete files**, without skips, in 653.08 seconds. This includes the 35 previously
+qualified monitor/deadline-consumer files plus real timer policy, CAS and producer
+coverage, stale-queue invalidation, native workspace reconstruction, Slack
+conversation lifecycle, skill/settings/configuration producers, claim isolation,
+five agent-lifecycle module suites, and the new deadline composition regression.
+Database build, production server typechecking/build, module boundaries, migration
+order and Runner profile identity pass. Twenty-nine fresh PostgreSQL 17 schemas
+plus per-file fixtures applied all 412 journal entries through index 413. Every
+selected source hash and temporary fixture import was restored exactly.
+
+Four new deadline cases check future and overdue work with and without an explicit
+minimum spacing, no dispatch before the selected time, and complete disarming
+after settlement. A controlled mutation discarded only the inherited continuation
+option while retaining timer spacing: the regression failed. Restoring the
+composed source made all four cases pass with the same assertions and timers.
+This guards against fixing the timer floor by restoring a 30-second delay for
+other workers that deliberately use shorter bounded continuations.
+
+The final monitor-parent publication changed only its audit. All production trees
+and 49 selected test hashes remain identical to this accepted source. Final
+publication must also adopt the actual merged prerequisite and receive fresh
+exact-head CI, security and reviews. No full local repository-suite, live provider,
+external alarm delivery, measured instance/database suspension or fleet-cost claim
+is made. Existing Cloud alarm coverage and timer sleep-safety gates remain intact.
