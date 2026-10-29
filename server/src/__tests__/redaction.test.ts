@@ -1006,3 +1006,51 @@ describe("escaped JSON fields keep neighboring fields", () => {
     expect(redactSensitiveText(once)).toBe(once);
   });
 });
+
+describe("JSON fields with trailing backslashes redact", () => {
+  it("redacts a JSON field value ending in a single backslash", () => {
+    const output = redactSensitiveText('{"token":"SECRET\\"}');
+    expect(output).toBe(`{"token":"${REDACTED_EVENT_VALUE}"}`);
+    expect(JSON.parse(output)).toEqual({ token: REDACTED_EVENT_VALUE });
+  });
+
+  it("redacts a valid JSON value ending in a literal backslash", () => {
+    const input = JSON.stringify({ token: "SECRET\\" });
+    const output = redactSensitiveText(input);
+    expect(output).toBe(JSON.stringify({ token: REDACTED_EVENT_VALUE }));
+    expect(JSON.parse(output)).toEqual({ token: REDACTED_EVENT_VALUE });
+  });
+
+  it("redacts a Windows-style path value ending in a backslash", () => {
+    const output = redactSensitiveText('{"token":"C:\\path\\"}');
+    expect(output).toBe(`{"token":"${REDACTED_EVENT_VALUE}"}`);
+  });
+
+  it("redacts a trailing-backslash value and keeps its neighbor", () => {
+    const output = redactSensitiveText(
+      '{"token":"SECRET\\"","message":"hello"}',
+    );
+    expect(output).toBe(
+      `{"token":"${REDACTED_EVENT_VALUE}","message":"hello"}`,
+    );
+    expect(JSON.parse(output)).toEqual({
+      token: REDACTED_EVENT_VALUE,
+      message: "hello",
+    });
+  });
+
+  it("redacts a value ending in a multi-backslash run", () => {
+    const output = redactSensitiveText('{"token":"abc\\\\\\"}');
+    expect(output).toBe(`{"token":"${REDACTED_EVENT_VALUE}"}`);
+  });
+
+  it("keeps redacting trailing-backslash values on a second pass", () => {
+    const once = redactSensitiveText('{"token":"SECRET\\"}');
+    expect(redactSensitiveText(once)).toBe(once);
+  });
+
+  it("still redacts an escaped-quote value fully", () => {
+    const output = redactSensitiveText('{"token":"pre\\"X"}');
+    expect(output).toBe(`{"token":"${REDACTED_EVENT_VALUE}"}`);
+  });
+});
