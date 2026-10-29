@@ -10373,10 +10373,15 @@ describe("native session bounded recovery", () => {
     });
     const stop = vi.fn(async () => undefined);
     const renew = vi.spyOn(nativeLeaseRenewal, "startNativeSessionExecutionLeaseRenewal").mockReturnValue({ stop });
+    const releasePreparation = vi.fn(async () => {
+      expect(renew).toHaveBeenCalledOnce();
+      expect(stop).not.toHaveBeenCalled();
+    });
     let reached!: () => void, release!: () => void;
     const claiming = new Promise<void>(resolve => { reached = resolve; });
     const preparation = new Promise<void>(resolve => { release = resolve; });
     const running = executePaperclipNativeSession({ db, execution: fresh, runnerInstanceId: "fresh-runner",
+      onExecutionLeaseAcquired: releasePreparation,
       runnerExecutionTarget: { kind: "remote", transport: "sandbox", remoteCwd: "/workspace", environmentId: "fresh-environment", leaseId: "fresh-lease" },
       onEvent: async event => {
         if (event.payload?.span === "native.coordinator.claim") { reached(); await preparation; }
@@ -10388,6 +10393,7 @@ describe("native session bounded recovery", () => {
         db, runId: fresh.binding.runId, attempt: 1, remote: true,
       }));
       expect(stop).not.toHaveBeenCalled();
+      expect(releasePreparation).toHaveBeenCalledOnce();
       release();
       expect(await running).toBe(failure);
       expect(stop).toHaveBeenCalledOnce();

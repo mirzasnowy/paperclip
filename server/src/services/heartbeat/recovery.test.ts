@@ -697,6 +697,7 @@ describePostgres("heartbeat recovery module ownership", () => {
       controllerBootId: controller.bootId, controllerPid: controller.pid,
       controllerProcessStartedAt: controller.processStartedAt,
       leaseOwner: claim.leaseOwner, leaseExpiresAt: expiresAt });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     native.claims.mockImplementationOnce(async input => {
       await input.onClaim?.(claim, scope);
       return [claim];
@@ -726,7 +727,9 @@ describePostgres("heartbeat recovery module ownership", () => {
     try {
       await createHeartbeatRecovery(db, deps).recoverNativeRunsAfterRestart(new Date(), [run.id]);
       await leaseReleased;
-      await new Promise(resolve => setTimeout(resolve, 21_000));
+      if (outcome === "failure_before_dispatch") await Promise.all([...deps.activeRunExecutionPromises]);
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(21_000);
       expect(deps.activeRunExecutionPromises.size).toBe(outcome === "completion" ? 1 : 0);
       expect(native.detach).not.toHaveBeenCalled();
       expect(deps.executeRun).toHaveBeenCalledOnce();
@@ -735,6 +738,7 @@ describePostgres("heartbeat recovery module ownership", () => {
     } finally {
       finish();
       await Promise.all([...deps.activeRunExecutionPromises]);
+      vi.useRealTimers();
       await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, run.id));
       await db.delete(heartbeatRuns).where(eq(heartbeatRuns.id, run.id));
     }
