@@ -205,6 +205,11 @@ allowing the new authority. The original ingress address remains unchanged.
 Runner accepts `connection: { mode: "external" }` on warm attachment to preserve
 the process owner's listener and TLS settings while rotating the run identity.
 
+Core permits connection refresh for the saved successful run while its warm task
+lease is retained, unexpired, and not retiring or stopped. PRP authentication
+still applies. A superseded lease cannot acquire a connection. Retention does
+not authorize preparation or submission of new work through the completed lease.
+
 Idle retirement suspends and stops Runner, saves its exact checkpoint, writes
 credentials through the durable lease handoff, then completes the provider task.
 Core permits read-only suspension proof for the exact saved identity of a
