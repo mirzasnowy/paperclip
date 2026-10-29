@@ -14,6 +14,7 @@ import { agents, companies, completionContracts, createDb, heartbeatRuns, issues
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { nativeRunProjectionWork } from "../services/native-runtime/native-run-projection-work.js";
 import { projectCommittedRun } from "../services/native-runtime/native-run-projection.js";
+import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
 import { finalizeNativeRun } from "../services/native-runtime/native-run-finalizer.js";
 import * as statusCommitter from "../services/native-runtime/status-decision-committer.js";
 import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
@@ -131,6 +132,28 @@ describe("committed native run projection lifecycle", () => {
     expect((await read(binding.runId)).executionStatusDeliveryId).toBe(settled.executionStatusDeliveryId);
     expect(emitAgentTaskRun).toHaveBeenCalledTimes(1);
   });
+  it("ignores routine company-only finalization hints and still repairs a committed run", async () => {
+    await start(); await flush(); await quiet();
+    const previous = db.$client.options.debug;
+    const queries: string[] = [];
+    db.$client.options.debug = (_id, query) => {
+      if (/from\s+"native_run_finalizations"/i.test(query)) queries.push(query);
+    };
+    try {
+      for (let index = 0; index < 3; index += 1) {
+        await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, { companyId }); });
+        await flush();
+      }
+      expect(queries).toEqual([]);
+    } finally { db.$client.options.debug = previous; }
+    const binding = await accepted();
+    await finalizeNativeRun({ db, runId: binding.runId, workspaceFinalizeStatus: "succeeded" });
+    await flush();
+    expect((await read(binding.runId)).status).toBe("succeeded");
+    expect(emitAgentTaskRun).toHaveBeenCalledTimes(1);
+    await quiet();
+  });
+
   it("wakes from the real status decision transaction after startup has become quiet", async () => {
     await start(); await flush(); await quiet();
     const binding = await accepted();
