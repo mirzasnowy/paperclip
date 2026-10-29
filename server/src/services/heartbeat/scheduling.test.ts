@@ -95,8 +95,8 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
   beforeAll(async () => {
     if (external) await applyPendingMigrations(external);
     else database = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-scheduling-module");
-    // The fake scheduler clock must not expire real PostgreSQL socket timers.
-    // Pool disconnect/reconnect behavior has its own database-client tests.
+
+
     db = createDb(external ?? database.connectionString, { idleTimeoutSeconds: 0, maxLifetimeSeconds: 0, connectTimeoutSeconds: 0 });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => {
@@ -539,15 +539,15 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
       return workers;
     }
     async function advance(milliseconds: number) {
-      // Let real database I/O finish between scheduler clock edges. One large
-      // clock jump can place a completion receipt after the next retry edge.
+
+
       for (let remaining = milliseconds; remaining > 0; remaining -= 1000) {
         await vi.advanceTimersByTimeAsync(Math.min(1000, remaining));
         await realDelay(5);
       }
     }
     async function quiet() {
-      // Finish the bounded notification batch before measuring passive quiet.
+
       await advance(31_000);
       if (!draining) await vi.waitFor(() => {
         expect(idleWorkSnapshot().active).toBe(0);
@@ -588,8 +588,8 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
       try {
         await ready;
         await advance(31_000);
-        // An unresolved transaction may arm an in-memory reconciliation retry,
-        // but its uncommitted setting must not make the monitor eligible.
+
+
         expect(await heartbeat.nextIssueMonitorAt()).toBeNull();
         expect((await readIssue(f.issue.id)).monitorAttemptCount).toBe(0);
       } finally { release(); }

@@ -1119,8 +1119,8 @@ export function createHeartbeatScheduling(
       .where(and(eq(companies.status, "active"), noActiveNativeMonitorRun(),
         sql`${issues.monitorNextCheckAt} is not null`, isNull(issues.assigneeUserId),
         sql`${issues.assigneeAgentId} is not null`, inArray(issues.status, ["in_progress", "in_review"])));
-    // Keep overdue rows: capped passes and deferred admission still owe work.
-    // A claimed monitor becomes eligible only strictly after the five-minute fence.
+
+
     return row?.at == null ? null : new Date(row.at).getTime();
   }
 
@@ -1366,8 +1366,8 @@ export function createHeartbeatScheduling(
       return { checked, enqueued, skipped };
     }
 
-  // Keep the existing manual combined entry point. Scheduled workers invoke
-  // the distinct owners so legacy agent cadence cannot poll issue monitors.
+
+
   async function tickTimers(now = new Date()) {
     const timers = await tickAgentTimers(now);
     const monitors = await tickIssueMonitors(now);

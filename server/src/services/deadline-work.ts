@@ -35,9 +35,9 @@ export function registerDeadlineWork(
       await task.run(signal);
       if (signal.aborted || !task.canRun()) { next = null; return; }
       const deadline = await task.next();
-      // Admission can close while either asynchronous operation is in flight.
-      // Keep the request, but drop a stale local deadline so only the bounded
-      // in-memory retry runs until admission reopens.
+
+
+
       if (!task.canRun()) { next = null; return; }
       // Back off failed or still-overdue work, not a successfully read future deadline.
       earliest = deadline === null || deadline > Date.now()

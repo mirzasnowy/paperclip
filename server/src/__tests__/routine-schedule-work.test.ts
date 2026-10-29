@@ -55,8 +55,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const svc = service();
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => !draining, canReconcile: () => true,
       onError: error => errors.push(error) });
-    // Exercise the real routine service and shared worker without registering
-    // unrelated monitor stubs. Combined queue wiring has a separate suite.
+
+
     const worker = registerDeadlineWork(coordinator, DELIVERY_QUEUES.routineSchedules, {
       retryMs: 30_000,
       canRun: () => !draining,

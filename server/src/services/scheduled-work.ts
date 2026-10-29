@@ -28,8 +28,8 @@ export function registerScheduledWork(
     retryMs: options.retryMs,
     notificationCoalesceMs: options.retryMs,
   });
-  // Legacy agent interval policies retain their existing external tick until
-  // that separate duty is migrated. They do not scan issue monitors.
+
+
   const timers = coordinator.register(DELIVERY_QUEUES.agentTimers, {
     retryMs: options.retryMs,
     run: options.tickAgentTimers,
