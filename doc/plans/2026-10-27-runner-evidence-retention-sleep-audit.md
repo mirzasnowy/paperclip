@@ -157,3 +157,27 @@ Publication must adopt the actual merged skill-retention prerequisite and obtain
 fresh exact-head CI/security and reviews. No full local repository-suite, live
 provider, external wake, measured instance/database suspension or fleet-cost claim
 is made. Historical results and limitations above remain tied to their revisions.
+
+## Requalification with later upstream changes
+
+Normal reconciliation preserved the final skill-retention repair and all 95
+unrelated master paths from the actual timer squash, task activity index and task
+read changes. On source `2fa458833fa43b47eddc728a5e57f5ffcf5fa3e4`, all **285
+cases across 11 complete files passed together**, with no skips, in 47.26 seconds.
+This fresh full selection includes the preserved checkpoint APIs and their
+repaired startup fixtures. Database build, production server typechecking/build,
+module boundaries, target migration order and generated TypeScript/Rust release
+profile consistency passed. Fresh PostgreSQL 17 schemas applied all 413 journal
+entries through index 414. Every selected source hash and temporary fixture import
+restored exactly. The final parent audit was then adopted through a doc-only
+normal merge without changing any accepted runtime/test/package tree.
+
+The inherited upstream Copilot source-identity failure is recorded in the
+[parent retention audit](2026-10-27-skill-version-retention-sleep-audit.md#final-current-master-qualification-before-publication).
+This slice leaves its release attestation and all identity inputs unchanged.
+Generated admission still matches the active release manifest; the separate
+source-identity computation is an explicit inherited exception, not a pass or a
+claim of new live-provider qualification. Required fresh exact-head CI/security
+and reviews remain merge gates. Actual parent squash adoption is still required
+before publication; any new upstream behavior must remain preserved and receive
+appropriate combined-context checks.
