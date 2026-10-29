@@ -270,7 +270,7 @@ async function waitForServer(
         const res = await fetch(`${apiBase}/api/health`, { signal: AbortSignal.timeout(1_000) });
         if (res.ok) return apiBase;
       } catch {
-        // Server is still starting.
+
       }
     }
 
@@ -306,8 +306,8 @@ describeEmbeddedPostgres("paperclipai company import/export e2e", () => {
 
     tempDb = await startEmbeddedPostgresTestDatabase("paperclip-company-cli-db-");
 
-    // Exercise the server's supported fallback instead of assuming a probed port
-    // stays available between the probe and the child process binding it.
+
+
     requestedPortReservation = await reserveRequestedPort();
     const { port } = requestedPortReservation;
     writeTestConfig(configPath, tempRoot, port, tempDb.connectionString);

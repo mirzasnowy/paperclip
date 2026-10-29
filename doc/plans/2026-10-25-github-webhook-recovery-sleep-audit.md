@@ -185,3 +185,173 @@ merged-PR confirmation are separate remaining duties.
 All earlier stack CI/review findings, remaining original inventory items, final
 master reconciliation, and each latest-head PR gate remain required. No merge is
 authorized or performed by this migration stack.
+
+
+## Current-parent acceptance (October 28)
+
+The existing branch was merged normally with published review-projection parent
+`1453a4447c0d4d33f713ae3e00734c7950f95426` at
+`3d7f163bc5259b60f9bd19b7fc90b402f0a6e925`. Both complete added/removed patches
+and every unrelated parent blob were preserved. This slice adds no migration;
+the entire parent database tree, including migration history through 0403, is
+byte-identical. The batch-size option already exists in the current parent;
+this slice selects five without changing other consumers' default bound.
+
+At that integration, 751 distinct cases passed:
+
+- 274 complete GitHub review workflow cases.
+- 294 other GitHub-named provider, installation, recovery, attachment, and
+  publication cases, including all 19 new recovery worker cases and all six
+  stop-before-transport variants.
+- 30 complete terminal interaction publication cases.
+- 145 complete voice-session integration and inbound retention cases.
+- Eight current startup/hostname wiring cases.
+
+The first workflow filter omitted the separate new recovery group. The saved
+verbose case list exposed that gap before acceptance was declared. A second
+selection in another fresh database ran all remaining GitHub-named cases while
+excluding the already-tested review group. The two passed-name sets have no
+overlap. The first command filtered 1,504 unrelated cases; the complementary
+command filtered 1,484 cases. These are focused selections, not the full chat
+suite or full repository suite. The original commands and results remain in the
+verification record.
+
+Coverage includes unconfigured/Cloud/disabled quiet, saved-deadline quiet,
+authenticated callback-only admission, real installation and credential changes,
+restart/drain/standby, nested commit/rollback, failed reconstruction, 106 saved
+deadlines with five-item fair batches, held HTTP with independent queue progress,
+joined shutdown, exact-attempt known-unsent restoration, and protection of a
+newer receipt. Existing authority, signature, source, and replay checks also pass.
+
+Database build, server production typecheck/build, module boundaries, and target
+migration order passed. Five separate fresh PostgreSQL fixtures received the
+unchanged parent migrations through 0403. The audit follow-up changes only this
+document; accepted source, tests, and migration hashes remain unchanged.
+
+The actual parent merge and fresh current-head CI/Greptile checks remain required.
+Direct GitHub Apps retain their real one-minute external recovery obligation;
+Cloud relay and disabled endpoints remain excluded. This does not expand Cloud
+alarm coverage or prove deployed host/database suspension or fleet savings.
+
+
+## Parent startup boundary correction
+
+The parent stale-review PR received a valid required review finding: its legacy
+maintenance source slice used a removed end marker. The parent reproduced that
+with explicit bounds, then fixed the marker and passed all 13 startup tests.
+This webhook-recovery slice removes that entire coordinator and timer. During
+the normal parent merge, its obsolete boundary inspection conflicts with this
+slice's existing assertions that both symbols are absent. Keep those absence
+assertions: there is no remaining coordinator section to slice. All other parent
+changes, including its audit and unrelated onboarding smoke coverage, are carried
+unchanged. The complete server, package, and UI source trees still match the
+751-case accepted revision; the eight startup cases are also rerun after resolving
+this overlap. This is a superseded test for removed functionality, not a waiver
+of an unresolved production finding. Fresh review and CI remain required.
+
+
+## Orphan-assignment review investigation (2026-10-28)
+
+Ponytail's review of `836acef0370d42323fdfdbd6d62a805b2469f1d4` required
+preventing recovery from repeatedly loading an endpoint whose assigned agent
+cannot resolve. Its reasoning correctly identifies that the loader does not
+join agents, but the proposed orphan state conflicts with existing database
+constraints. Investigation must establish that boundary before changing SQL.
+
+The first attempted reproduction set `assigned_agent_id` to NULL. It failed
+**during fixture mutation**, with PostgreSQL 23502, before the worker ran. This
+is not a failing worker regression and is not described as one. The original
+schema and a freshly migrated PostgreSQL catalog confirm:
+
+- `chat_endpoints.assigned_agent_id` is NOT NULL.
+- `chat_endpoints_assigned_agent_id_agents_id_fk` references `agents(id)` with
+  ON DELETE RESTRICT.
+- `chat_endpoints_company_agent_fk` references `(agents.company_id, agents.id)`.
+- Both foreign keys are validated and nondeferrable.
+
+Thus a supported writer cannot commit the missing, null, deleted or foreign-company
+agent relationship described in that finding. A concurrent deletion cannot open
+a committed orphan window. The application endpoint resolver joins those same
+ID/company columns. Disabling constraints or corrupting a database would be a
+different unsupported state; the tests do not weaken the schema to manufacture it.
+
+Three new real-database cases verify the boundary: NULL assignment fails 23502,
+assignment to a missing UUID fails 23503, and deletion of the assigned agent fails
+23503. Each proves the original assignment remains, then runs real webhook
+recovery, observes one redelivery and a saved future deadline, and advances
+15 seconds with no SQL reads or extra transport. All **22 recovery-scheduling
+cases** pass on a fresh database, including the previous 19 cases and these
+three additions. The 1759 unselected cases are not counted as current passes.
+
+Production source is unchanged. The earlier 751-case acceptance retains its
+stated revision and scope; these 22 overlap 19 of those cases, so there are
+754 distinct tested cases across the evidence, not 773. No deployed sleep claim
+is made. The legacy manual recovery query remains an optional review follow-up.
+The actual parent squash ancestry was merged normally with the entire result
+tree identical to the previously validated branch, so already-landed parent
+changes no longer inflate this PR's diff. Fresh current-head CI and review
+must evaluate the constraint evidence before this slice can merge; an old
+conditional verdict or neutral check is not treated as a pass.
+
+
+## Repository comment rule follow-up
+
+Apply CONTRIBUTING.md's prohibition on new code comments consistently to this
+slice too. Seven newly added comment lines are removed: two in the constraint
+regression and five explaining GitHub pagination guards. The database-constraint
+evidence above and pagination/partial-window rationale in this audit remain the
+durable explanation. TypeScript parsing proves both affected files retain the
+exact non-comment token stream; no recovery predicate, guard, assertion, deadline
+or transport call changes. The 22-case current recovery acceptance and earlier
+751-case runtime evidence keep their stated revisions and scope. Fresh head CI
+and review are still required; neither an old score nor comment-only equivalence
+by itself satisfies the merge gates.
+
+
+## Current CI test corrections (2026-10-29)
+
+The cbe3fbea head failed two independent test boundaries. Neither changes the
+production scheduler, database constraints, delivery state machine or deadlines.
+
+The new deleted-agent probe expected PostgreSQL 17's 23503 foreign-key error.
+CI PostgreSQL 18 correctly reports 23001 (restrict violation) for the same
+forbidden delete. Running the original assertion against local embedded
+PostgreSQL 18 reproduced that exact failure. The assertion now accepts only
+those two integrity codes for deletion; NULL still requires 23502 and a missing
+UUID still requires 23503. It also checks that the original agent row and
+assignment both remain before testing healthy deadline-driven recovery. All
+22 recovery-scheduling cases pass on embedded PostgreSQL 18. The three integrity
+probes also pass against a fresh PostgreSQL 17 database. They are the same three
+cases across two engines, not six distinct cases. The invalid-orphan premise
+remains ruled out by validated nondeferrable constraints, not by changing SQL.
+
+The attachment E2E failed waiting for a file chooser. Its screenshot and trace
+showed an announcement appearing while the attachment menu was open. The global
+locator handler tried to dismiss the announcement outside that modal menu, so
+its own click could not complete and the original menu-item click could not run.
+The unchanged failing journey passed naturally once locally; that pass did not
+explain or erase the CI failure. A controlled delayed real announcement response
+released after the menu opened reproduced the same 60-second filechooser and
+intercepted-click failures. The handler now closes the menu through Escape,
+dismisses the announcement through its visible button, and reopens the menu
+so the original upload action can continue. The same first late-announcement
+condition passes with this repair. The temporary fault is one-shot after that
+first injection so a dismissed card is not incorrectly awaited for the second
+attachment; the failing predecessor never reached a second injection.
+
+The temporary delay/route fault was removed before final acceptance. All **11
+complete attachment receipt journeys pass**, retries zero, in 38.7 seconds.
+Every journey body, receipt/content assertion, 60-second test budget and
+120-second startup budget is unchanged. The full run uses a fresh database on
+the existing local PostgreSQL 17 test server and the canonical throwaway
+Paperclip home, CLI onboarding, server, UI, storage and HTTP paths. An earlier
+full-run attempt failed during embedded PostgreSQL initialization before any
+browser test started; host semaphore usage was near capacity. That startup
+failure is retained and is not counted as a test pass. No shared host resources
+were deleted or unrelated databases stopped. PostgreSQL 18 coverage is provided
+separately by the recovery suite and remains required in fresh CI.
+
+Server typecheck passes. Production source and schema are unchanged from cbe3fbea;
+only the two test files and this audit change. The prior 751-case runtime scope
+remains exactly as recorded. Fresh current-head CI and reviews remain required
+before merge; no previous failing result is erased by these passes.

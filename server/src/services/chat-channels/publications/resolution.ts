@@ -219,7 +219,7 @@ export function createChatPublicationResolution(db: Db, options: ResolutionOptio
           ) { await recordPhotonPublicationRetry(tx, endpointId, publication, userId); }
           const now = new Date();
           await notifyChatPublicationWork(tx, publication);
-          await notifyVoicePublication(tx, initialRecord.endpoint);
+          await notifyVoicePublication(tx, initialRecord.endpoint, publication.conversationId);
           await tx
             .update(chatPublications)
             .set(

@@ -1,7 +1,8 @@
 # Native pending status-effect recovery
 
 Branch: `codex/sleep-47-native-pending-effects`.
-Parent: #17687, `b9fe9e2e40ab48104cf18822b5302a740d1957a7`.
+Current published parent: #17687, `b28399babac72ba9db1c4a4ef882c5e87aded38c`.
+Original draft parent: `b9fe9e2e40ab48104cf18822b5302a740d1957a7`.
 Status: implemented and locally verified; remote PR acceptance remains required.
 
 ## Duty and existing ownership
@@ -105,9 +106,9 @@ coordinator index resolves their current company/issue/decision owner. Both plan
 used index access for those relations after the change. This fixture establishes
 history cost for this query, not universal tenant-size or fleet performance.
 
-Migration 0399 uses concurrent IF NOT EXISTS index builds through the existing
+Current migration 0411 uses concurrent IF NOT EXISTS index builds through the existing
 nontransactional migration owner. Generated snapshots retain the newest five
-(0395–0399). Fresh schema application, migration replay, direct SQL replay, and
+(0407–0411). Fresh schema application, migration replay, direct SQL replay, and
 valid/ready index checks pass. The first replay command failed before SQL because
 the tsx evaluator rejected top-level await; the corrected promise-chain command
 passed. Logs: `/tmp/sleep47-query-plan-committed.log`,
@@ -165,3 +166,117 @@ Published as [#17690](https://github.com/paperclipai/paperclip/pull/17690).
 Exact head `56c3601ea605b333141e86e0a810ed790fb6ce48`: all 53 checks pass;
 Greptile 5/5 with no actionable findings or review threads; mergeable parent.
 The PR remains draft and unmerged. This accepts slice 47 only, not the full stack.
+
+## Current migration411 integration and complete acceptance
+
+Only this slice's unlanded 0403 migration artifacts were deferred before a
+normal merge of the verified current unsafe-export parent. No conflicts occur.
+The complete original runtime/schema patch and every unrelated upstream blob
+are preserved. The migration directory and client matched the exact parent
+before generation. `pnpm db:generate` produced `0411_real_scrambler.sql`. Both
+concurrent, idempotent index statements are byte-identical to the original.
+All earlier SQL, journal entries and retained snapshot bytes remain unchanged,
+with five snapshots 0407 through 0411. No new code comments are added.
+
+Source `ba38ee465df02b6026286b5d5e15ae49fe07a367` passes **2284 distinct
+cases in 25 complete files**, without skips. The main selection passes 2225
+cases in 203.94 seconds and safe-replacement passes 59 in 26.03 seconds.
+The complete 94-case status-authority corpus then passes again on the same
+database in 16.03 seconds. The repeat is not double-counted. Three preexisting
+PSC/OUT/sentinel company rows remain unchanged in their inspected ID/name/prefix
+fields after both runs; each invocation appends two distinct UUID-derived
+fixture prefixes. Current per-file counts:
+
+| Complete file | Passing cases |
+| --- | ---: |
+| src/__tests__/issue-recovery-actions.test.ts | 89 |
+| src/__tests__/native-finalization-recovery.test.ts | 32 |
+| src/__tests__/native-interaction-bridge.test.ts | 7 |
+| src/__tests__/native-status-arbiter-corpus.test.ts | 94 |
+| src/__tests__/native-workspace-sync.test.ts | 10 |
+| src/__tests__/recovery-stale-issue-lock-sweep.test.ts | 40 |
+| src/__tests__/server-startup-feedback-export.test.ts | 67 |
+| src/__tests__/slack-conversation-lifecycle.test.ts | 41 |
+| src/modules/run-dispatch/adapters/postgres.test.ts | 69 |
+| src/modules/wake-queue/adapters/postgres.test.ts | 93 |
+| src/modules/wake-queue/adapters/queued-comment-postgres.test.ts | 5 |
+| src/services/execution-control-reconciliation.test.ts | 10 |
+| src/services/explicit-native-continuation.test.ts | 335 |
+| src/services/heartbeat/queue.test.ts | 32 |
+| src/services/heartbeat/recovery.test.ts | 45 |
+| src/services/heartbeat/run-control.test.ts | 51 |
+| src/services/heartbeat/run-lifecycle.test.ts | 31 |
+| src/services/heartbeat/upgrade-readiness.test.ts | 7 |
+| src/services/legacy-execution-recovery.test.ts | 15 |
+| src/services/native-runtime/native-restart-recovery.test.ts | 25 |
+| src/services/native-runtime/native-run-finalizer-telemetry.test.ts | 29 |
+| src/services/native-runtime/native-safe-replacement.test.ts | 59 |
+| src/services/native-runtime/native-session-executor.test.ts | 968 |
+| src/services/native-runtime/native-workspace-export-retry.test.ts | 80 |
+| src/services/native-runtime/native-workspace-reconstruction.test.ts | 50 |
+
+Twenty-one separate fresh PostgreSQL 17 databases migrate through 0411 before
+setup. Four embedded-only fixture imports temporarily use their own external
+database on this IPC-exhausted host and are restored byte for byte: interaction
+bridge, workspace reconstruction, Slack lifecycle and wake-queue PostgreSQL.
+All assertions and timing limits remain unchanged. Other suites use their
+existing supported external-database paths. This is qualified external-database
+acceptance, not an unmodified embedded CI reproduction. Actual database build,
+server types/build, module boundaries and exact-head migration order pass.
+
+A populated 0410-to0411 upgrade preserves all 409 prior migration receipts and
+all 38 companies, appends exactly one receipt and appends none on replay. Both
+partial indexes are valid and ready on fresh and upgraded databases. Earlier
+failures above retain their original scope and causes. These checks verify
+current worker and producer/consumer behavior, not deployed host/database
+suspension, external Cloud wakes or fleet savings.
+
+Normal merge `6cc9e0f4a05ac7aee225b8ac7dce119c31799257` adopts prepared parent
+`d64d307484633485716124b24ad8bbdbea61f399`, carrying the published automatic-review
+ancestry and parent documentation. Complete server, package, UI and test trees
+remain identical to the accepted source, including the whole 0411 database
+tree. Publication stays held for the actual unsafe-export prerequisite merge
+and ancestry reconciliation. Fresh published-head CI and reviews remain required.
+
+
+## Inherited CI correction checked in native-effect context
+
+Normal integration `5f7cd7bc589ad0169dfb5f33df611ead56510ca3` carries the
+upstream GitHub observation-bound correction and independent cleanup assertion.
+Only those two previously unselected test files and parent audits change.
+All production source, all packages including migration 0411, and all 25 files
+in the accepted 2284-case selection remain byte-identical. That acceptance and
+its 94-case same-database repeat retain their original source scope.
+
+Both focused native-presentation GitHub idle variants pass in 15.26 seconds.
+All six cases in the complete cleanup-removal suite pass in 8.47 seconds. Two
+separate fresh PostgreSQL 17 databases migrate through 0411; supported external
+URLs require no fixture source adaptation. The other 1779 cases in the large
+chat file are outside this focused selection. The full parent 274-case workflow
+is not claimed as executed here. The parent audit preserves the original CI
+failure and controlled comparison, including its limit on exact CI causality.
+Actual prerequisite ancestry and fresh published-head CI/reviews remain required.
+
+
+## Published unsafe-export parent
+
+Normal merge `01ff4da4457bf2afc3d2e5e65fa33c16d56a4e6f` adopts published prerequisite
+`b28399babac72ba9db1c4a4ef882c5e87aded38c`, including the actual automatic-review
+squash ancestry. Complete server, package, UI and test trees remain identical
+to the accepted child. The whole 0411 database tree and all earlier acceptance
+scopes remain unchanged. Publication remains held until the unsafe-export
+parent lands and its actual ancestry is reconciled. Fresh current-head CI
+and review are still required.
+
+
+## Actual unsafe-export squash ancestry
+
+Unsafe-export prerequisite #17687 merged as
+`4e715eb7ea56d49a099530c3dce59e61e698077c`, reviewed at
+`b28399babac72ba9db1c4a4ef882c5e87aded38c`. Its entire squash tree equals
+the reviewed parent, which was already an ancestor of this prepared child.
+Normal merge `45a1f20c8830efb0d60794f01fd7a5013ff41198` resolves duplicate
+squash ancestry while preserving the complete held child tree byte for byte.
+All accepted source, all migrations through 0411, and all earlier validation
+scopes remain unchanged. The only following edit records this proof. Fresh
+published-head CI and exact-head Greptile 5/5 are still required.

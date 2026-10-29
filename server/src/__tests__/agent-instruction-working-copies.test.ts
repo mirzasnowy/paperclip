@@ -293,7 +293,7 @@ describe("registered run instruction copies", () => {
   describe("captured instruction commit worker", () => {
     afterEach(async () => {
       vi.useRealTimers(); vi.restoreAllMocks();
-      // A failed assertion must not leave retry debt for the next test's global reconstruction.
+
       await db.update(agentInstructionWorkingCopies).set({ state: "saved", nextAttemptAt: null })
         .where(eq(agentInstructionWorkingCopies.companyId, companyId));
     });
@@ -402,8 +402,8 @@ describe("registered run instruction copies", () => {
           await vi.advanceTimersByTimeAsync(Math.max(0, previous!.nextAttemptAt!.getTime() - Date.now()) + 1);
           if (attempts === 2) {
             await saving;
-            // The attempt counter is the claim, not completion. Simulate slow
-            // storage across a whole retry interval before releasing its failure.
+
+
             expect((await copies.get(companyId, copy.runId))?.attempts).toBe(2);
             await vi.advanceTimersByTimeAsync(31_000);
             release();
@@ -591,8 +591,8 @@ describe("registered run instruction copies", () => {
             await vi.advanceTimersByTimeAsync(1000);
             expect(idleWorkSnapshot().active).toBeGreaterThan(0);
           });
-          // A long active save is still owned; elapsed time is not permission
-          // to spend a retry or invalidate its receipt's attempt fence.
+
+
           await vi.advanceTimersByTimeAsync(120_000);
           expect(await copies.get(companyId, copy.runId)).toMatchObject({ state: "pending_commit", attempts: 1 });
           release();
