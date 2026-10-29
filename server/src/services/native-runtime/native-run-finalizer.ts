@@ -1637,9 +1637,9 @@ export async function finalizeNativeRun(input: {
         .returning();
       const projection = await input.db.transaction(async transaction => {
         const tx = transaction as unknown as Db;
-        // A recovery worker can project after the status decision commits and
-        // before this live finalizer arrives. Observe that writer under the
-        // run lock before deciding whether another terminal event is owed.
+
+
+
         const [before] = await tx.select({ status: heartbeatRuns.status, runtimeMode: heartbeatRuns.runtimeMode,
           nativePhase: heartbeatRuns.nativePhase, finishedAt: heartbeatRuns.finishedAt })
           .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId)))

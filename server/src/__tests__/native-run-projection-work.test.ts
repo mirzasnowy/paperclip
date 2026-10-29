@@ -293,8 +293,8 @@ describe("committed native run projection lifecycle", () => {
     await db.update(heartbeatRuns).set({ nativePhase: "terminal_failure", errorCode: "native_execution_ownership_unverified" })
       .where(eq(heartbeatRuns.id, binding.runId));
     await start(); await flush(); await quiet();
-    // Only the emission dependency is used by this concrete writer; storage and
-    // its transaction/signals remain real. Unexpected dependency use fails.
+
+
     const lifecycle = createHeartbeatLifecycle(db, { emitTerminalAgentTaskRun: vi.fn() } as unknown as HeartbeatLifecycleDependencies);
     await lifecycle.setRunStatus(binding.runId, "running", { errorCode: null, nativePhase: "committed" });
     await flush(); expect((await read(binding.runId)).status).toBe("succeeded"); await quiet();

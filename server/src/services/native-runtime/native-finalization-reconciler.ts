@@ -621,8 +621,8 @@ async function reconcileNativeFinalizationsPass(
         }
       }
     }
-    // The delegated worker must finish the projection before the remaining
-    // committed consequences and resource settlement can observe terminal state.
+
+
     if (options.skipNativeRunProjection && row.coordinatorPhase === "committed" && row.runProjectionPending) continue;
     const barrier = await db.select({ status: workspaceOperations.status })
       .from(workspaceOperations)
