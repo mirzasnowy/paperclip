@@ -194,6 +194,10 @@ Project authorization is still checked for each new run.
 
 A Launcher task owns one Runner process, independently of Core heartbeat runs.
 Successful warm run completion retains the task and its mounts. The reuse
+policy is saved with the selected native runtime, independently of workspace
+copy-back records. Recovery uses that policy when no workspace-sync record exists,
+so it does not stop a Runner that foreground completion retains. Failed and
+cancelled runs still stop instead of staying warm. The reuse
 fingerprint includes the authorized project set; changing it retires the previous
 task before checkpoint recovery. Adoption and each warm handoff require a current,
 configuration-bound project-auth check against the exact retained mount scope. Core atomically
