@@ -354,6 +354,17 @@ describe("compact agent configuration", () => {
     expect(planAgentConfiguration(saved, input({}))).toEqual([]);
   });
 
+  it("round trips unpinned skill shorthand without synchronizing unchanged skills", async () => {
+    api.agents.skills.mockResolvedValue({ desiredSkills: ["paperclip"], desiredSkillEntries: [{ key: "paperclip", versionId: null }], warnings: [] });
+    const saved = await snapshot();
+    const compact = compactAgentConfiguration(saved.document);
+    expect(compact.spec.skills).toEqual(["paperclip"]);
+    expect(planAgentConfiguration(saved, compact)).toEqual([]);
+    compact.spec.title = "Engineer";
+    await saveAgentConfiguration(saved, compact, receipt, progress);
+    expect(api.agents.syncSkills).not.toHaveBeenCalled();
+  });
+
   it("binds a profile by key without copying or rewriting its definition", async () => {
     api.tools.listProfiles.mockResolvedValue({ profiles: [profile("read", false)] });
     const saved = await snapshot();

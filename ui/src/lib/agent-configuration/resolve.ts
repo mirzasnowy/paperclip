@@ -18,6 +18,8 @@ export function resolveAgentConfiguration(snapshot: AgentConfigurationSnapshot, 
   for (const key of ["permissions", "instructions", "tools", "apiKeys", "secrets", "channelOperations", "revisions"] as const) {
     if (document.spec[key]) Object.assign(spec, { [key]: { ...before[key], ...document.spec[key] } });
   }
+  if (document.spec.skills) spec.skills = document.spec.skills.map(skill =>
+    typeof skill === "string" ? { key: skill, versionId: null } : { ...skill, versionId: skill.versionId ?? null });
   if (document.spec.instructions?.files) {
     const files = { ...before.instructions?.files };
     for (const [path, content] of Object.entries(document.spec.instructions.files)) {

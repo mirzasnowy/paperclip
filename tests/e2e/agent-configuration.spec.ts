@@ -210,6 +210,16 @@ test("Advanced YAML persists settings and commands through their real resource A
   expect(saved.spec.apiKeys).toBeUndefined();
   expect(saved.spec.secrets).toBeUndefined();
   expect(saved.spec.channelOperations).toBeUndefined();
+  await edit(page, value => { value.spec.skills = [skill.key]; });
+  await save(page);
+  expect((await document(page)).spec.skills).toEqual([skill.key]);
+  let repeatedSkillSyncs = 0;
+  page.on("request", event => {
+    if (event.method() === "POST" && new URL(event.url()).pathname === `/api/agents/${agent.id}/skills/sync`) repeatedSkillSyncs++;
+  });
+  await edit(page, value => { value.spec.title = "Unpinned skill stays unchanged"; });
+  await save(page);
+  expect(repeatedSkillSyncs).toBe(0);
   expect((await json(await request.get(`/api/agents/${agent.id}/configuration`))).adapterConfig.env.YAML_SECRET.type).toBe("secret_ref");
   expect((await json(await request.get(`/api/tool-connections/${connection.id}/installs`))).installs).toContainEqual(expect.objectContaining({ targetType: "agent", targetId: agent.id }));
   const key = (await json(await request.get(`/api/agents/${agent.id}/keys`))).find((row: { name: string }) => row.name === "YAML automation");

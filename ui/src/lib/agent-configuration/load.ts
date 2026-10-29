@@ -77,7 +77,8 @@ export async function loadAgentConfiguration(id: string, companyId: string) {
       },
       instructions: { mode: bundle.mode, rootPath: bundle.rootPath, entryFile: bundle.entryFile,
         files: Object.fromEntries(files.map(file => [file.path, file.content])) },
-      skills: skills.desiredSkillEntries ?? skills.desiredSkills.map(key => ({ key, versionId: null })),
+      skills: (skills.desiredSkillEntries ?? skills.desiredSkills.map(key => ({ key, versionId: null })))
+        .map(skill => ({ ...skill, versionId: skill.versionId ?? null })),
       tools: {
         connections: connections.connections.flatMap(connection =>
           (connection.installs ?? []).some(install => install.targetType === "agent" && install.targetId === id)
