@@ -257,3 +257,34 @@ The original remote head remains an ancestor, and no history is force-pushed.
 Fresh required CI/security, exact-head Greptile 5/5 and any actionable Ponytail
 findings are still gates on this slice's final publication. The inherited source
 identity exception and all bounded-acceptance limitations above remain explicit.
+
+## Final outage-journey readiness repair
+
+The first final publication, `762d48605f93351e47f9fd1249d9293625834242`,
+received exact-head Greptile 5/5 and Ponytail 5/5 with no actionable findings.
+Its required checks completed cleanly except the second browser shard and its
+aggregate. The title-outage journey reached the 60-second global test timeout;
+its failure artifact still shows the original title, and no issue write was
+observed. The same file then passed that case locally but reproduced a timeout
+in the failed-session startup case (four passing cases and one failure). These
+failures and the original assertions remain recorded; no failing gate is waived.
+
+A visible initial task heading alone does not establish that the conversation
+layout has settled after the upstream loading changes. The test now requires
+visible conversation history before the ordinary title-edit flows, including
+the cached offline task switch. Four additive readiness assertions are the only
+spec changes. Removing those four lines reproduces the exact prior file bytes:
+all original recovery assertions, outage controls, and timeout budgets remain.
+The deliberately held first-session-lookup case retains its original pre-auth
+readiness, so it still queues a write before the owner is known. An initial
+broader readiness attempt blocked that intentional startup state; that extra
+condition was removed rather than changing the scenario.
+
+All **five complete outage-recovery browser journeys pass** afterward on a new
+isolated PostgreSQL 17 database. They still verify failed-save retention, actual
+retry after recovery, separation of two offline drafts, delayed owner binding,
+comment replay idempotency and failed-session retry. The accepted 652-case
+TypeScript and 29-case Rust runtime sources, all prior sleep regression files,
+packages and UI are unchanged. The final nine-path diff adds this spec-readiness
+repair to the eight-path feature. Fresh exact-head CI/security and reviews are
+required after publication; older-head review passes are not reused.
