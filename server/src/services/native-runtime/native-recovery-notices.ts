@@ -36,8 +36,8 @@ export function pendingNativeRecoveryNotices(db: Db, scope?: NativeRecoveryNotic
     )).orderBy(asc(nativeRunFinalizations.runId)).limit(100);
 }
 
-/** Resolve only this committed run's current finalization notices. An action ID
- * can be reused for a newer incident, so discovery is never write authority. */
+
+
 export async function resolveCommittedNativeRecoveryNotices(db: Db,
   scope: { companyId: string; issueId: string; runId: string }, onlyWhenSettled = false) {
   const [pending] = await db.select({ id: issueRecoveryActions.id }).from(issueRecoveryActions).where(and(
@@ -46,8 +46,8 @@ export async function resolveCommittedNativeRecoveryNotices(db: Db,
   if (!pending) return;
   return db.transaction(async transaction => {
     const tx = transaction as unknown as Db;
-    // Match native status/workspace recovery order: coordinator, issue, run,
-    // then action. The action service retains its own resolution side effects.
+
+
     const [coordinator] = await tx.select({ phase: nativeRunFinalizations.phase, resultId: nativeRunFinalizations.resultId })
       .from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, scope.companyId),
         eq(nativeRunFinalizations.issueId, scope.issueId), eq(nativeRunFinalizations.runId, scope.runId))).for("update");

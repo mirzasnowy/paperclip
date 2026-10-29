@@ -8,12 +8,16 @@ cleanup is confirmed, and neither a session nor an intake task owns it. The
 existing policy retains it until both expiry and last update are seven days old:
 `max(expiresAt, updatedAt) + 7 days`. No new table or persisted state is added.
 
-The voice owner loads eligible deadlines on startup. The existing
+The voice owner reconstructs eligible deadlines on startup, yielding after at
+most 100 selected rows per scope refresh. Re-registering the same service resets
+its page cursor so a partial scan cannot skip old deadlines. The existing
 `notifyVoiceInbound` boundary now notifies cleanup and retention before writes.
 Outer transaction settlement wakes the workers. Rolled-back changes do not
 create retention work. Signed callbacks, rejection cleanup, approval/session
 handoff and cleanup recovery retain their existing transaction ownership.
-Company and endpoint changes use the existing composed notification boundary.
+Configuration, authority and session-only changes do not change admission
+retention eligibility, so they do not wake retention. Startup reconstructs
+existing history, and admission writes carry the exact retention hint.
 
 At the deadline, retention locks the admission and rechecks current eligibility
 and both timestamps before deleting. PostgreSQL submillisecond timestamps round
@@ -34,3 +38,10 @@ boundary. Independent SQL writers or additional processes require their own
 notification/recovery contract. This migration does not extend Cloud alarms or
 sleep eligibility: an in-process deadline cannot wake stopped compute. The
 external wake owner must cover retention before that deadline can permit sleep.
+
+
+The [current-parent acceptance](plans/2026-10-25-voice-inbound-retention-sleep-audit.md#current-parent-paging-and-restart-acceptance-october-28)
+records bounded paging and restart acceptance. The subsequent
+[notification review repair](plans/2026-10-25-voice-inbound-retention-sleep-audit.md#configuration-rescan-review-repair-october-28)
+records 282 current passing cases and repeated configuration saves selecting zero
+history rows, with the original failures and verification limits preserved.
