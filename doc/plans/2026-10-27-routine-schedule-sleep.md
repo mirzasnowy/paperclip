@@ -141,3 +141,40 @@ Its suppression and producer coverage need their own audit before removing
 `scheduled.timers.wake()`. GitHub event/continuity polling, merged-PR confirmation,
 external-object refresh, status cards, skill/native-harness retention, and other
 heartbeat leftovers remain in the original inventory.
+
+## October 29 master reconciliation and current acceptance
+
+This existing slice is being reconciled through the backup parent #17836 and its
+merged prerequisites. Normal merges preserve the routine worker, its predicate,
+producer hooks and all existing test assertions. The package tree remains the
+qualified profile-80 parent tree. Final publication must adopt the actual merged
+backup parent; local preparation on its accepted source is not a review pass.
+
+Current source `4659ef76d398193b15e7812d4a97f3da3b743226` has **417 passing
+unique cases across 14 complete files**, without skips: routine deadline work,
+scheduled work and its PostgreSQL queries, routine service, routine HTTP E2E and
+routes, plugin-managed routines, budgets, companies, git workspace expiration,
+agent-device login, startup registration, scoped deadline work and the shared
+delivery coordinator. Database build, production server typechecking and build,
+module boundaries, target migration order and Runner profile identity pass.
+
+The initial combined run passed 416 cases and timed out in the UUID routine HTTP
+authorization case at its existing 20-second limit. A fresh complete affected
+13-case E2E file passed in 13.92 seconds; that case completed in 425 ms. A sanitized
+PostgreSQL wait-state observer completed without errors. No test assertion,
+timeout or production source changed for that diagnostic, and the cause of the
+initial timeout is not claimed as established. The initial failure remains in
+the acceptance record rather than being described as an uninterrupted green run.
+
+Six fresh PostgreSQL 17 schemas and fresh helper-owned per-file databases applied
+all 412 migration journal entries through index 413. Temporary local fixture
+imports allowed those existing assertions to run against the owned external
+PostgreSQL process; every selected source hash and import was restored exactly.
+The worker tests retain their direct zero-select/execute/transaction assertions
+through multiple former polling periods and real committed-producer reactivation,
+outer commit/rollback, pause/resume, catch-up, restart, drain and retry coverage.
+
+This is bounded local source acceptance, not a full repository-suite pass,
+measured instance/database suspension, external alarm delivery or fleet savings.
+Independent writers and replicas still require their own supported notification
+contract. The final published head needs fresh CI, security and review gates.
