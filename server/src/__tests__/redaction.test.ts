@@ -933,3 +933,76 @@ describe("redaction keeps JSON escaping intact around redacted secrets", () => {
     expect(redactSensitiveText(once)).toBe(once);
   });
 });
+
+describe("escaped JSON fields keep neighboring fields", () => {
+  it("keeps a neighboring field when redacting multi-field escaped JSON", () => {
+    const input = JSON.stringify(
+      JSON.stringify({ token: "abc", message: "hello" }),
+    );
+    const output = redactSensitiveText(input);
+    expect(output).toBe(
+      JSON.stringify(
+        JSON.stringify({ token: REDACTED_EVENT_VALUE, message: "hello" }),
+      ),
+    );
+    expect(JSON.parse(JSON.parse(output))).toEqual({
+      token: REDACTED_EVENT_VALUE,
+      message: "hello",
+    });
+  });
+
+  it("redacts an escaped-quote value and keeps its neighbor", () => {
+    const input = JSON.stringify(
+      JSON.stringify({ token: 'pre"X', message: "hello" }),
+    );
+    const output = redactSensitiveText(input);
+    expect(output).toBe(
+      JSON.stringify(
+        JSON.stringify({ token: REDACTED_EVENT_VALUE, message: "hello" }),
+      ),
+    );
+    expect(JSON.parse(JSON.parse(output))).toEqual({
+      token: REDACTED_EVENT_VALUE,
+      message: "hello",
+    });
+  });
+
+  it("redacts a trailing literal backslash and keeps its neighbor", () => {
+    const input = JSON.stringify(
+      JSON.stringify({ token: "abc\\", message: "hello" }),
+    );
+    const output = redactSensitiveText(input);
+    expect(output).toBe(
+      JSON.stringify(
+        JSON.stringify({ token: REDACTED_EVENT_VALUE, message: "hello" }),
+      ),
+    );
+    expect(JSON.parse(JSON.parse(output))).toEqual({
+      token: REDACTED_EVENT_VALUE,
+      message: "hello",
+    });
+  });
+
+  it("redacts a brace inside a value and keeps its neighbor", () => {
+    const input = JSON.stringify(
+      JSON.stringify({ token: "a}b", message: "hello" }),
+    );
+    const output = redactSensitiveText(input);
+    expect(output).toBe(
+      JSON.stringify(
+        JSON.stringify({ token: REDACTED_EVENT_VALUE, message: "hello" }),
+      ),
+    );
+    expect(JSON.parse(JSON.parse(output))).toEqual({
+      token: REDACTED_EVENT_VALUE,
+      message: "hello",
+    });
+  });
+
+  it("keeps redacting multi-field escaped JSON on a second pass", () => {
+    const once = redactSensitiveText(
+      JSON.stringify(JSON.stringify({ token: "abc", message: "hello" })),
+    );
+    expect(redactSensitiveText(once)).toBe(once);
+  });
+});

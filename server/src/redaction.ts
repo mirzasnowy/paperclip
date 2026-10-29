@@ -368,20 +368,14 @@ const CLI_SECRET_FLAG_RE = new RegExp(
   String.raw`^-{1,2}${SECRET_FIELD_NAME_PATTERN}$`,
   "i",
 );
-// A JSON secret-field value consumes backslash escape sequences as units.
-// An escaped quote inside the value must not end the match early, or the
-// rest of the secret leaks and the surrounding JSON breaks.
 const JSON_SECRET_FIELD_TEXT_RE = new RegExp(
   String.raw`((?:"|')?${SECRET_FIELD_NAME_PATTERN}(?:"|')?\s*:\s*(?:"|'))(?:\\[\s\S]|[^"'` +
     "`" +
     String.raw`\\\r\n])+((?:"|'))`,
   "gi",
 );
-// An escaped-JSON secret-field value consumes doubled escape sequences as
-// units, so an escaped quote inside the value neither ends the match early
-// nor leaks the rest of the secret.
 const ESCAPED_JSON_SECRET_FIELD_TEXT_RE = new RegExp(
-  String.raw`((?:\\")?${SECRET_FIELD_NAME_PATTERN}(?:\\")?\s*:\s*(?:\\"))(?:\\\\|\\["']|[^\\\r\n])+((?:\\"))`,
+  String.raw`((?:\\")?${SECRET_FIELD_NAME_PATTERN}(?:\\")?\s*:\s*(?:\\"))(?:\\[\s\S]|[^"\\\r\n])+?((?:\\"))(?=[,}\]\s]|$)`,
   "gi",
 );
 const SECRET_TEXT_HINTS = [

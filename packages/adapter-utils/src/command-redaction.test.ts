@@ -175,3 +175,37 @@ describe("unquoted secret values stop before a backslash run that introduces a q
       .toBe("token=***REDACTED*** end");
   });
 });
+
+describe("backslash runs before value terminators", () => {
+  const run = "\\".repeat(3);
+
+  it("leaves a backslash run visible before whitespace", () => {
+    expect(redactCommandText(`token=abc${run} end`)).toBe(
+      `token=${REDACTED_COMMAND_TEXT_VALUE}${run} end`,
+    );
+  });
+
+  it("leaves a backslash run visible before a backtick", () => {
+    expect(redactCommandText("token=abc" + run + "` end")).toBe(
+      "token=" + REDACTED_COMMAND_TEXT_VALUE + run + "` end",
+    );
+  });
+
+  it("leaves a backslash run visible before a quote", () => {
+    expect(redactCommandText(`token=abc${run}" end`)).toBe(
+      `token=${REDACTED_COMMAND_TEXT_VALUE}${run}" end`,
+    );
+  });
+
+  it("consumes a backslash run at the end of input", () => {
+    expect(redactCommandText(`token=abc${run}`)).toBe(
+      `token=${REDACTED_COMMAND_TEXT_VALUE}`,
+    );
+  });
+
+  it("consumes a backslash run before a value character", () => {
+    expect(redactCommandText(`token=abc${run}def end`)).toBe(
+      `token=${REDACTED_COMMAND_TEXT_VALUE} end`,
+    );
+  });
+});
