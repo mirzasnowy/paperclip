@@ -2800,8 +2800,8 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
             expect(input).toEqual({ companyId, runId });
             await held;
             physicalCleanupFinished = true;
-            // The cleanup operation owns its original callback's lifetime,
-            // including work that outlives a bounded maintenance attempt.
+
+
             if (outcome === "late_callback") await lateCallback;
             if (outcome === "rejected")
               throw new Error("maintenance-test-closed-failure");

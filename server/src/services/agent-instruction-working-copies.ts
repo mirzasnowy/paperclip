@@ -45,8 +45,8 @@ function serializeCopySave<T>(db: Db, companyId: string, runId: string, save: ()
   let active = copySaves.get(scope);
   if (!active) copySaves.set(scope, active = new Map());
   const key = targetKey(companyId, runId);
-  // Share ownership across services and dedicated pools. A live operation
-  // retains it until completion; elapsed time cannot authorize a second save.
+
+
   const operation = (active.get(key) ?? Promise.resolve()).then(save);
   const settled = operation.then(() => undefined, () => undefined);
   active.set(key, settled);
@@ -387,8 +387,8 @@ export function agentInstructionWorkingCopyService(db: Db, options: { environmen
     if (row.state === "unavailable" && isAgentDirectoryCopy(row)) {
       await recoverDirectoryCleanup(row, () => directories.recoverUnavailable(row));
     } else if (row.state === "preparing" && isAgentDirectoryCopy(row)) {
-      // A provider cannot launch until preparation records "prepared". With
-      // the owning run terminal, this is an interrupted staging copy only.
+
+
       await directories.release(await patch(row, { state: "unavailable", processStoppedAt: new Date(),
         errorCode: "AGENT_FILES_PREPARE_FAILED", errorMessage: "Agent-file preparation was interrupted. The temporary copy was discarded.", nextAttemptAt: null }));
     } else if (row.location === "local" && (row.processStoppedAt || runtimeMode === "native" &&
@@ -412,8 +412,8 @@ export function agentInstructionWorkingCopyService(db: Db, options: { environmen
       await patch(row, { state: "pending_collection", errorCode: "INSTRUCTION_STOP_UNCONFIRMED",
         errorMessage: "The provider's stop has not been confirmed. Instruction collection is pending; no save is claimed.", nextAttemptAt: new Date(Date.now() + 30_000) });
     } else if (["warm_saved", "pending_collection", "unchanged_turn"].includes(row.state)) {
-      // Live retained sessions must not occupy every batch and starve stopped
-      // copies from other agents. This does not permit reads without stop proof.
+
+
       await patch(row, { nextAttemptAt: new Date(Date.now() + 30_000) });
     }
   }

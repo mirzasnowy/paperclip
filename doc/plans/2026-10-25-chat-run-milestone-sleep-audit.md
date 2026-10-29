@@ -1618,3 +1618,58 @@ emits no new milestone work. The complete automatic Slack registration group
 passes 115 cases (the other integration groups were not selected), and server
 TypeScript checking passes. Combined stack and current-head CI remain separate
 verification gates.
+
+
+## Current-parent integration and acceptance (October 28)
+
+The existing milestone slice is prepared on Teams attempt recovery #17592 at
+`24c54399909105984e2a10f5869064984f69c472`. Its previous published head is
+`7991c2fa2ce7298bee69b25dbc6cb60a5e2fe250`, with original own base
+`e634f655375853421a62692abf95fd859585a800`. This is a normal merge, with no
+new scheduler, queue table, or worker duty. Final landed-parent reconciliation,
+exact-head CI, and Greptile 5/5 remain separate publication and merge gates.
+
+Four explicit-base integration conflicts were resolved by preserving both owners:
+
+- Publication resolution and successful delivery retain milestone-scoped
+  notifications and the parent's exact voice conversation scope.
+- Native finalization retains the server-owned first-task completion guard and
+  this slice's milestone notifications.
+- The run-identity fixture retains current parent coverage for query parameters,
+  lock timeout options, and the additional authorization read scopes. Its three
+  steering acceptance calls use the existing reconciliation transaction owner.
+  The current parent's external PostgreSQL setup and client cleanup remain.
+
+All unrelated parent paths, including migration 0397, bounded consent recovery,
+voice cleanup/retention fixture repairs, and runner checkpoint restoration, are
+preserved. No migration regeneration or dependency/workflow change is introduced.
+
+Fresh isolated PostgreSQL fixtures pass **330 distinct selected cases**:
+
+- **305 cases across 14 complete suites:** all five milestone worker suites,
+  run identity, board claim, Cloud provisioning, auth session routes, Cloud actor
+  authentication, stale-lock recovery, GitHub credentials, project Git
+  authorization, and app admission wiring.
+- **25 selected real chat integration cases** cover saved milestone discovery,
+  identity and authority producers, post-close receipt settlement, all ten
+  authority-restoration paths including Cloud synchronization, Slack account
+  linking and rollback, and changed native review metadata. The remaining
+  **1,590 chat cases were skipped**, not passed.
+- Server production typechecking, build, and module-boundary checks pass.
+  Production typechecking does not statically check test files; the selected
+  tests above were executed.
+
+Commands and results were retained in
+`/tmp/sleep28-current-parent-acceptance-command.json`,
+`/tmp/sleep28-current-parent-acceptance.log`,
+`/tmp/sleep28-current-parent-producers.log`, and the corresponding
+`types`, `build`, and `boundaries` logs, each with a zero exit-status receipt.
+Every database owner used its own newly created and app-migrated fixture.
+The intentional cancellation and audit-write failures in the recovery tests
+remain visible in the successful acceptance log.
+
+Earlier failure records and combined-stack counts above retain their original
+revision scope. This acceptance is not a complete local repository run, a live
+provider test, an external alarm qualification, physical host/database suspension,
+or evidence of fleet savings. Native progress and subsequent sleep slices keep
+their separate owners.

@@ -165,3 +165,46 @@ cases pass. Server typecheck/build pass. The health parent is propagated through
 company cleanup, retaining both notification paths in the three overlapping
 producer sites. The six prerequisite cleanup cases pass. Remote acceptance of
 the new Discord head remains required.
+
+## Updated parent acceptance, October 27
+
+A normal merge at `5b50224785252fe49a4501d9695063cf9621e528` includes
+company-cleanup parent #17561 at `21be75d2b0` and health #17554 at `8c1d293d1a`.
+Only the original 26 Discord-owned paths differ from that parent. The shared
+producer sites preserve both health and command notifications; no provider
+behavior, schema, or coordinator contract changes in this integration.
+
+The four complete command-store, company-batching, coordinator, and startup
+suites pass 119 cases. Eight real Discord automatic-registration and Slack
+held-transaction cases pass separately; 1,581 other chat integration cases are
+not counted as executed. These 127 distinct targeted cases use separate isolated
+PostgreSQL 17 databases cloned from the migrated health test schema, not an
+unmigrated-database fixture proof. The first name filter selected only the Slack
+case; the corrected verified group selector then executed all eight cases.
+Server typecheck and build pass. Startup tests still emit the recorded
+SIGINT/SIGTERM listener-count warnings without assertion failures.
+
+The earlier failed baselines and remote CI history above remain evidence for
+their stated revisions. Fresh current-head reviews and all CI are required, and
+both prerequisites must land before this child can merge into master. This does
+not establish host suspension, external Cloud alarms, or provider cost savings.
+
+
+## Acceptance after the company-deletion parent landed, October 27
+
+The branch integrates master at `f8563d25077b17681ab6ef5949f7b07415a58ede`,
+including the landed health and company-deletion repairs. Squash ancestry caused
+merge conflicts. Resolution applies only this slice's exact 26-file patch from
+its recorded parent `21be75d2b0` to that pinned master. Every other file matches
+master. The migration 0394 and current lockfile remain unchanged by this slice.
+
+All 141 distinct targeted cases pass: 78 command-store, batching, coordinator and
+startup-timing cases; 8 real automatic Discord and held-transaction Slack cases;
+and 55 complete startup/export and company-deletion cases. The company-deletion
+fixture starts on an initially empty isolated database and applies migrations.
+The two Discord fixtures use separate migrated database clones. The remaining
+1,581 chat integration cases were deselected. Server typecheck and build pass.
+The startup suite retains the existing signal-listener warnings without an
+assertion failure. Source files did not change after these results; subsequent
+edits record this acceptance. No full local matrix or deployed sleep is claimed.
+Fresh exact-head reviews and CI remain required before merge.

@@ -12,11 +12,12 @@ export function registerVoiceRecoveryWork(
   service: ReturnType<typeof voiceSessionRecovery>,
   canRun: () => boolean,
 ) {
+  service.reset();
   return registerScopedDeadlineWork(coordinator, {
     queue: DELIVERY_QUEUES.voiceSessionRecovery,
     decodeScope: voiceRecoveryScope,
     matches,
-    load: (scope, signal) => service.load(scope, signal),
+    load: (scope, signal) => service.refresh(scope, signal),
     check: (entry, signal) => service.check(entry.id, signal),
   }, canRun);
 }

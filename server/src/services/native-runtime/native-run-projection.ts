@@ -15,15 +15,15 @@ import { emitAgentTaskRun } from "../agent-task-run-telemetry.js";
 import { isNewTerminalRunFailure, reportRunFailure } from "../run-failure-report.js";
 import { nativeRunnerOwnershipNotHeldCondition } from "./native-runner-ownership.js";
 
-/** Server-owned terminal conversion used by live finalization and read models. */
+
 export function projectNativeTerminalRunStatus(
   terminalState: "succeeded" | "failed" | "cancelled" | "active",
 ) {
   return terminalState === "active" ? ("running" as const) : terminalState;
 }
 
-/** Shared by discovery and the final projection CAS. A terminal record alone
- * is not pending work; only the existing repairable mismatch counts. */
+
+
 export function nativeRunProjectionNeedsRepair(projectedStatus: "succeeded" | "failed" | "cancelled" | SQL) {
   return and(
     eq(heartbeatRuns.runtimeMode, "native"),
@@ -43,10 +43,10 @@ export function nativeRunProjectionNeedsRepair(projectedStatus: "succeeded" | "f
         ),
       ),
     ),
-    // Reconciliation revisits committed results periodically. Only repair
-    // a changed projection; rewriting an unchanged failed run would mint a
-    // fresh status delivery (and failure toast) on every sweep. Check the
-    // current row so concurrent replays cannot both queue the same repair.
+
+
+
+
     or(
       sql`${heartbeatRuns.status} is distinct from ${projectedStatus}`,
       isNull(heartbeatRuns.finishedAt),
@@ -61,8 +61,8 @@ export function nativeRunProjectionNeedsRepair(projectedStatus: "succeeded" | "f
   );
 }
 
-/** Correlates the outer run/coordinator to its accepted result without reading
- * result payloads or issuing a separate query for each retained coordinator. */
+
+
 export function pendingNativeRunProjectionCondition(db: Db) {
   const status = sql<string>`${nativeRunResults.resultJson}->'terminal'->>'runTerminalState'`;
   return exists(db.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
@@ -77,7 +77,7 @@ export function pendingNativeRunProjectionCondition(db: Db) {
 }
 
 export function recoveredExecutionFailureMetadata() {
-  // Read the row being updated so a concurrent cleanup diagnostic is retained.
+
   return sql`case when ${heartbeatRuns.error} is not null or ${heartbeatRuns.errorCode} is not null
     then jsonb_build_object('recoveredExecutionFailure', jsonb_build_object(
       'schema', 'paperclip.recovered_execution_failure.v1',
@@ -148,9 +148,9 @@ export async function projectCommittedRun(input: {
           ? {
               error: null,
               errorCode: null,
-              // Capture the row being updated, not the earlier admission read:
-              // cleanup may have recorded a new diagnostic in the meantime.
-              // Other result metadata and all physical-owner evidence stay put.
+
+
+
               resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb)
                 || ${recoveredExecutionFailureMetadata()}
                 || jsonb_build_object('finalizationPhase', 'committed', 'failureCode', null, 'originalFailureCode', null, 'nextAttemptAt', null)`,
@@ -162,9 +162,9 @@ export async function projectCommittedRun(input: {
       .returning();
     return after ? { before, after } : null;
   });
-  // Metadata repairs can preserve the terminal status. Only a genuine status
-  // transition should emit another terminal event. A failed run that leaves a
-  // pending retry still needs its first failure report.
+
+
+
   if (projected && projected.after.status !== projected.before.status) {
     await emitAgentTaskRun(input.db, projected.after);
     void reportRunFailure(input.db, projected.after);

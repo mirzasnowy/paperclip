@@ -16,8 +16,14 @@ export type VoiceReplyEntry = {
   companyId: string;
   endpointId: string;
   connectionId: string;
+  conversationId: string | null;
   dueAt: number;
 };
+
+export function voiceReplyMatches(entry: VoiceReplyEntry, scope?: VoiceReplyScope) {
+  return !scope || (scope.kind === "session" ? entry.sessionId : scope.kind === "endpoint" ? entry.endpointId
+    : scope.kind === "connection" ? entry.connectionId : scope.kind === "conversation" ? entry.conversationId : entry.companyId) === scope.id;
+}
 
 /** Existing sessions and dispatch intents own separate obligations. In particular,
  * ending a call must not erase an unacknowledged provider send. */
@@ -28,55 +34,67 @@ export function voiceReplySchedule(db: Db, operations: {
   // Live-call recovery already rechecks authority before provider inspection.
   // Remember only denied inspections so a later successful check can wake them
   // without making every healthy call inspection rescan an idle reply queue.
-  const authorityBlocked = new Map<string, VoiceReplyEntry>();
+  const authorityBlocked = new Map<string, VoiceReplyEntry & { revision: number }>();
+  let revision = 0;
   async function authorityAvailable(tx: object, sessionId: string) {
     if (authorityBlocked.has(sessionId)) await notifyVoiceReplies(tx, { kind: "session", id: sessionId });
   }
-  async function load(scope?: VoiceReplyScope, signal?: AbortSignal): Promise<VoiceReplyEntry[]> {
-    const entries: VoiceReplyEntry[] = [];
-    let cursor: string | undefined;
-    for (;;) {
-      signal?.throwIfAborted();
-      const rows = await db.select({ id: chatVoiceSessions.id, companyId: chatVoiceSessions.companyId,
-        endpointId: chatVoiceSessions.endpointId, connectionId: chatEndpoints.connectionId })
-        .from(chatVoiceSessions).innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.companyId, chatVoiceSessions.companyId)))
-        .where(and(inArray(chatVoiceSessions.mode, ["inbound_phone", "outbound_phone"]),
-          inArray(chatVoiceSessions.state, ["connecting", "active"]), gt(chatVoiceSessions.expiresAt, new Date()),
-          scope?.kind === "session" ? eq(chatVoiceSessions.id, scope.id) : undefined,
-          scope?.kind === "endpoint" ? eq(chatVoiceSessions.endpointId, scope.id) : undefined,
-          scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
-          scope?.kind === "company" ? eq(chatVoiceSessions.companyId, scope.id) : undefined,
-          cursor ? gt(chatVoiceSessions.id, cursor) : undefined)).orderBy(chatVoiceSessions.id).limit(100);
-      entries.push(...rows.map(row => ({ ...row, id: `session:${row.id}`, sourceId: row.id,
-        sessionId: row.id, kind: "session" as const, dueAt: 0 })));
-      if (rows.length < 100) break;
-      cursor = rows[rows.length - 1].id;
+  type Scan = { phase: "sessions" | "actions"; cursor?: string; retained: Set<string>; revision: number };
+  const scans = new Map<string, Scan>();
+  function reset() { scans.clear(); authorityBlocked.clear(); revision = 0; }
+  async function load(scope?: VoiceReplyScope, signal?: AbortSignal): Promise<{ rows: VoiceReplyEntry[]; complete: boolean }> {
+    const key = scope ? `${scope.kind}:${scope.id}` : "*";
+    const scan = scans.get(key) ?? { phase: "sessions" as const, retained: new Set<string>(), revision };
+    let phase = scan.phase, cursor = scan.cursor, complete = false;
+    const entries: VoiceReplyEntry[] = [], retained = new Set(scan.retained);
+    signal?.throwIfAborted();
+    if ((await instanceSettingsService(db).getExperimental()).enableChatConnectors) {
+      if (phase === "sessions") {
+        const rows = await db.select({ id: chatVoiceSessions.id, companyId: chatVoiceSessions.companyId,
+          endpointId: chatVoiceSessions.endpointId, connectionId: chatEndpoints.connectionId,
+          conversationId: chatVoiceSessions.conversationId })
+          .from(chatVoiceSessions).innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.companyId, chatVoiceSessions.companyId)))
+          .where(and(inArray(chatVoiceSessions.mode, ["inbound_phone", "outbound_phone"]),
+            inArray(chatVoiceSessions.state, ["connecting", "active"]), gt(chatVoiceSessions.expiresAt, new Date()),
+            scope?.kind === "session" ? eq(chatVoiceSessions.id, scope.id) : undefined,
+            scope?.kind === "endpoint" ? eq(chatVoiceSessions.endpointId, scope.id) : undefined,
+            scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
+            scope?.kind === "conversation" ? eq(chatVoiceSessions.conversationId, scope.id) : undefined,
+            scope?.kind === "company" ? eq(chatVoiceSessions.companyId, scope.id) : undefined,
+            cursor ? gt(chatVoiceSessions.id, cursor) : undefined)).orderBy(chatVoiceSessions.id).limit(100);
+        entries.push(...rows.map(row => ({ ...row, id: `session:${row.id}`, sourceId: row.id,
+          sessionId: row.id, kind: "session" as const, dueAt: 0 })));
+        for (const row of rows) retained.add(row.id);
+        if (rows.length === 100) cursor = rows[rows.length - 1].id;
+        else { phase = "actions"; cursor = undefined; }
+      }
+      if (phase === "actions") {
+        const limit = 100 - entries.length;
+        const rows = await db.select({ id: chatActions.id, companyId: chatActions.companyId, endpointId: chatActions.endpointId,
+          connectionId: chatEndpoints.connectionId, conversationId: chatActions.conversationId,
+          sessionId: sql<string | null>`${chatActions.payload}->>'sessionId'`, updatedAt: chatActions.updatedAt })
+          .from(chatActions).innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.companyId, chatActions.companyId)))
+          .where(and(eq(chatActions.kind, VOICE_REPLY_ACTION_KIND), eq(chatActions.status, "dispatching"),
+            scope?.kind === "session" ? sql`${chatActions.payload}->>'sessionId' = ${scope.id}` : undefined,
+            scope?.kind === "endpoint" ? eq(chatActions.endpointId, scope.id) : undefined,
+            scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
+            scope?.kind === "conversation" ? eq(chatActions.conversationId, scope.id) : undefined,
+            scope?.kind === "company" ? eq(chatActions.companyId, scope.id) : undefined,
+            cursor ? gt(chatActions.id, cursor) : undefined)).orderBy(chatActions.id).limit(limit);
+        entries.push(...rows.map(({ updatedAt, ...row }) => ({ ...row, id: `action:${row.id}`, sourceId: row.id,
+          kind: "action" as const, dueAt: updatedAt.getTime() + VOICE_REPLY_DISPATCH_TIMEOUT_MS + 1 })));
+        complete = rows.length < limit;
+        if (!complete) cursor = rows[rows.length - 1].id;
+      }
+    } else { retained.clear(); complete = true; }
+    signal?.throwIfAborted();
+    if (!complete) scans.set(key, { phase, cursor, retained, revision: scan.revision });
+    else {
+      scans.delete(key);
+      for (const entry of authorityBlocked.values()) if (entry.revision <= scan.revision && voiceReplyMatches(entry, scope) && !retained.has(entry.sourceId))
+        authorityBlocked.delete(entry.sourceId);
     }
-    cursor = undefined;
-    for (;;) {
-      signal?.throwIfAborted();
-      const rows = await db.select({ id: chatActions.id, companyId: chatActions.companyId, endpointId: chatActions.endpointId,
-        connectionId: chatEndpoints.connectionId, sessionId: sql<string | null>`${chatActions.payload}->>'sessionId'`, updatedAt: chatActions.updatedAt })
-        .from(chatActions).innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.companyId, chatActions.companyId)))
-        .where(and(eq(chatActions.kind, VOICE_REPLY_ACTION_KIND), eq(chatActions.status, "dispatching"),
-          scope?.kind === "session" ? sql`${chatActions.payload}->>'sessionId' = ${scope.id}` : undefined,
-          scope?.kind === "endpoint" ? eq(chatActions.endpointId, scope.id) : undefined,
-          scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
-          scope?.kind === "company" ? eq(chatActions.companyId, scope.id) : undefined,
-          cursor ? gt(chatActions.id, cursor) : undefined)).orderBy(chatActions.id).limit(100);
-      entries.push(...rows.map(({ updatedAt, ...row }) => ({ ...row, id: `action:${row.id}`, sourceId: row.id,
-        kind: "action" as const, dueAt: updatedAt.getTime() + VOICE_REPLY_DISPATCH_TIMEOUT_MS + 1 })));
-      if (rows.length < 100) break;
-      cursor = rows[rows.length - 1].id;
-    }
-    const retained = new Set(entries.filter(entry => entry.kind === "session").map(entry => entry.sourceId));
-    for (const entry of authorityBlocked.values()) {
-      const matches = !scope || (scope.kind === "session" ? entry.sourceId : scope.kind === "endpoint" ? entry.endpointId
-        : scope.kind === "connection" ? entry.connectionId : entry.companyId) === scope.id;
-      if (matches && !retained.has(entry.sourceId)) authorityBlocked.delete(entry.sourceId);
-    }
-    if (!entries.length) return entries;
-    return (await instanceSettingsService(db).getExperimental()).enableChatConnectors ? entries : [];
+    return { rows: entries, complete };
   }
 
   async function sessionDeadline(entry: VoiceReplyEntry): Promise<number | null> {
@@ -95,7 +113,7 @@ export function voiceReplySchedule(db: Db, operations: {
       });
     } catch (error) {
       if (error instanceof HttpError && [403, 404].includes(error.status)) {
-        if (error.status === 403) authorityBlocked.set(entry.sourceId, entry);
+        if (error.status === 403) authorityBlocked.set(entry.sourceId, { ...entry, revision: ++revision });
         else authorityBlocked.delete(entry.sourceId);
         return null;
       }
@@ -120,5 +138,5 @@ export function voiceReplySchedule(db: Db, operations: {
     }
     return dueAt === null ? null : { ...entry, dueAt };
   }
-  return { load, check, authorityAvailable };
+  return { load, check, reset, authorityAvailable };
 }

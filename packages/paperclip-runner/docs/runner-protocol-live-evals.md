@@ -149,6 +149,12 @@ startup hooks, or user homes into this route. Unsupported harnesses and
 mismatched descriptor identities fail before provider creation. The temporary
 home is removed on success and failure.
 
+The controlled wrapper forwards the bounded `--expected-acpx-profile` JSON
+argument to the same built CLI. Eval definitions pass it for qualified ACPX
+lanes as well as candidates, so stale SDK or command pins fail before a paid
+turn rather than only during scoring. A rejected profile never falls back to
+an invocation without the admission check.
+
 Success and failure artifacts retain `requestRouting`: controller gateway mode,
 provider, declared upstream route, campaign/execution/attempt IDs, and the
 SHA-256 of the descriptor bytes. The token and endpoint are excluded from this
@@ -930,3 +936,31 @@ portable runtime isolation, private archive replay, and complete/partial/empty
 campaign accounting. They do not establish current vendor prices, future
 retention charges, live Braintrust attribution or invoice settlement. Keep
 paid recurrence disabled until these independent gates are qualified.
+
+
+### Token-spend qualification with separate operating reconciliation
+
+A policy may explicitly set `overhead.accountingReadiness: "model_requests"`
+when model-token qualification is the operator's priority. In that mode an
+absent campaign capacity proof and absent observability cost proof do not block
+admission. Any supplied proofs must still validate. Current allowance/pricing
+windows, trace quotas, immutable source/request/runtime bindings, complete
+selection, per-cell allocations, request limits, no retries and the shared
+campaign admission cap remain required. Model reservation proofs remain required.
+
+The final report retains the once-only operating allowance and labels operating
+reconciliation pending. Missing, failed or canceled model evidence still holds
+the full cell allocation and fails completion. This policy does not certify a
+vendor operating-cost bound. Omit the field to retain full-lifecycle proof
+requirements. Existing manifests and held amounts are not rewritten.
+
+For this policy version, `operatingReconciliation` is always `pending`; the
+immutable controller summary has no operating invoice settlement step. Mixed
+histories retain that warning when any campaign uses the policy. A shared
+`accountingReadiness` label appears only when every campaign uses it.
+
+
+The trusted controller artifact preserves hidden dependency metadata as well as
+code. Its inventory verifier requires every recorded byte, including package
+`.npmignore` files. Only the fresh provider-credential-free controller build uses
+this upload setting; private attempts still use the protected archive path.

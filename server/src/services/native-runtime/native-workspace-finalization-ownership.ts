@@ -238,8 +238,8 @@ export async function withNativeWorkspaceFinalizationOwnership<T>(
           return claimedRun;
         }) : await claimOwner(input.db);
         if (!claimedRun) {
-          // A confirmed failed CAS created no owner to release. Publishing a
-          // release here would repeatedly wake a permanently changed binding.
+
+
           activeOwnerTokens.delete(owner.token);
           if (activeRunOwners.get(runKey)?.token === owner.token) activeRunOwners.delete(runKey);
           claimed = false;
