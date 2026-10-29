@@ -424,3 +424,36 @@ The local own-company-deadline P2 regression, fresh blank plugin fixture check
 and earlier historical failures remain documented above. No test assertion or
 timeout was weakened. No deployed suspension, external wake, full local suite
 or fleet-savings claim is made.
+
+## Current-head CI browser-readiness repair
+
+Head `1923b2624be25974a9f83c480534a0374127985b` received fresh Greptile
+5/5 and Ponytail 5/5 with an unconditional Ship verdict and only three optional
+nits. Required CI/security completed cleanly except the fifth browser shard
+and its aggregate. Four connection-review journeys failed their final saved
+status visibility check immediately after reload. The browser artifacts show
+Loading conversation with the retained history DOM concealed. Approval, decline,
+failed execution and actual continuation checks had already passed. Upstream's
+task-layout change now waits for stable width frames before revealing history;
+the journey also retains a second Connections tab. This is a UI-readiness race,
+not evidence of lost review execution.
+
+All four original journeys passed unchanged on the local macOS host (2.7 minutes),
+so a deterministic local reproduction is not claimed. CI's four failures and
+their screenshots remain the baseline evidence. No unchanged-head CI retry was
+used. The fixture now returns focus to the task tab, reloads, and explicitly
+requires visible conversation history within 30 seconds before checking the
+saved result. The application already bounds its first reveal at 15 seconds.
+Every existing saved-result visibility assertion, provider call-count assertion,
+continuation check and timeout remains in place; the new readiness condition is
+separate from the existing final assertion. There is no production change.
+
+The complete connection-review file then passed all four supported default-server
+journeys on a new isolated PostgreSQL 17 database. Its controlled-restart case
+remains intentionally skipped by the default configuration, matching CI. The
+product interaction, real fixture provider calls, cross-tab synchronization,
+resume run identity, persisted result details and Always allow continuation all
+remain exercised. Runtime/package/UI sources and all previously accepted sleep
+test sources are unchanged. Fresh required CI/security and automated reviews
+must be obtained on the new published head; the earlier head's passing reviews
+are not reused as a current-head pass.
