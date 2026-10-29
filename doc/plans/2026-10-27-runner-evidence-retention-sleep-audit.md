@@ -235,3 +235,25 @@ claimed. Required fresh exact-head CI/security and reviews remain merge gates.
 Actual parent squash adoption remains necessary before final publication. The
 new parent browser-repair commit and its original assertions are carried exactly;
 the browser gate itself must still be green on the final published head.
+
+## Actual prerequisite adoption for final publication
+
+The skill-retention prerequisite [#17923](https://github.com/paperclipai/paperclip/pull/17923)
+merged at `b06ea111a254c62e0a55199b010d82e0adb33bf0`, after all 58 current
+checks were clean and the exact reviewed head `269935f6ccd7685866fd94bea66f7f803c48058d`
+had Greptile and Ponytail 5/5. Its separate, evidence-supported failed-job retry
+passed; no failing gate or required review finding was waived.
+
+This last slice adopts that actual squash through normal merge
+`3c40eaad954f7705144e6f378d93be2adff0c54a`. Duplicate ancestry conflicts were
+resolved to the proven composed tree. The complete pre-adoption held tree is
+unchanged, including the 652-case TypeScript and 29-case Rust accepted sources,
+all selected tests and the parent's browser-readiness repair. Package, UI, E2E
+and map trees equal the actual prerequisite. The final diff has eight owned
+paths. This adoption changes ancestry rather than runtime behavior, so accepted
+checks are not repeated; this paragraph and the PR body only record provenance.
+The original remote head remains an ancestor, and no history is force-pushed.
+
+Fresh required CI/security, exact-head Greptile 5/5 and any actionable Ponytail
+findings are still gates on this slice's final publication. The inherited source
+identity exception and all bounded-acceptance limitations above remain explicit.
